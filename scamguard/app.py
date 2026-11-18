@@ -297,11 +297,13 @@ def build_ui(llm):
                 with gr.Row():
                     send = gr.Button("Check", variant="primary", scale=3)
                     clear = gr.Button("Clear all", scale=1)
+                # no fixed height: the box grows with the messages, so a question and its reply fit on one screen
+                size = {"height": None, "min_height": 300, "max_height": 1000}
                 try:
-                    chat = gr.Chatbot(label="Conversation", height=380, type="messages",
-                                      placeholder="The conversation appears here.")
+                    chat = gr.Chatbot(label="Conversation", type="messages",
+                                      placeholder="The conversation appears here.", **size)
                 except TypeError:                   # Gradio 6: messages format is the only format
-                    chat = gr.Chatbot(label="Conversation", height=380, placeholder="The conversation appears here.")
+                    chat = gr.Chatbot(label="Conversation", placeholder="The conversation appears here.", **size)
             with gr.Column(scale=4):
                 verdict = gr.HTML(_badge(*_READY))
                 with gr.Group(visible=False) as report_box:
