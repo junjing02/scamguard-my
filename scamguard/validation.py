@@ -9,6 +9,7 @@ from .tools import SCAM_TYPES
 
 
 def _fn(name, description, properties, required):
+    """Build one tool schema in the OpenAI / Hugging Face "function" format."""
     return {"type": "function", "function": {
         "name": name, "description": description,
         "parameters": {"type": "object", "properties": properties, "required": required}}}
@@ -41,6 +42,7 @@ TOOL_SCHEMAS = [
         ["summary"]),
 ]
 
+# the allow list: function name -> its parameter rules
 ALLOWED = {s["function"]["name"]: s["function"]["parameters"] for s in TOOL_SCHEMAS}
 _TYPES = {"string": str, "integer": int, "number": (int, float), "boolean": bool}
 
@@ -49,7 +51,7 @@ def validate_call(name, arguments):
     """Return (ok, error_message, cleaned_arguments)."""
     if not isinstance(name, str) or name not in ALLOWED:
         return False, f"Function '{name}' is not on the allow list. Allowed: {sorted(ALLOWED)}", None
-    if isinstance(arguments, str):
+    if isinstance(arguments, str):           # some models send the arguments as a JSON string
         try:
             arguments = json.loads(arguments)
         except json.JSONDecodeError:
@@ -68,11 +70,12 @@ def validate_call(name, arguments):
         if key not in arguments:
             return False, f"Missing required argument '{key}' for {name}.", None
 
+    # type, length and enum checks; strings are trimmed
     cleaned = {}
     for key, value in arguments.items():
         spec = props[key]
         expected = _TYPES[spec["type"]]
-        if isinstance(value, bool) and spec["type"] != "boolean":
+        if isinstance(value, bool) and spec["type"] != "boolean":   # in Python, True is also an int
             return False, f"Argument '{key}' must be {spec['type']}.", None
         if not isinstance(value, expected):
             return False, f"Argument '{key}' must be {spec['type']}, got {type(value).__name__}.", None

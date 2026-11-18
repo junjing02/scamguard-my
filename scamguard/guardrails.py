@@ -17,7 +17,7 @@ _OTP = re.compile(r"(?i)\b(otp|tac|pin|cvv)\b(\D{0,15})(\d{3,8})\b")
 
 
 def redact_pii(text: str):
-    """Return (clean_text, list_of_found_types)."""
+    """Hide IC, card and OTP/TAC/PIN numbers. Return (clean_text, list_of_found_types)."""
     found = []
     if _IC.search(text):
         found.append("IC number")
@@ -54,6 +54,7 @@ BLOCK_RULES = [
 ]
 
 # ---------- G2: prompt-injection indicators ----------
+# A match only flags the message: the LLM gets a warning, and G4 still checks its reply.
 INJECTION_PATTERNS = [
     r"ignore (all |any |your |the |previous |prior |above )+(instructions|rules|prompt|guidelines)",
     r"disregard (all |any |your |the |previous )*(instructions|rules)",
@@ -64,7 +65,8 @@ INJECTION_PATTERNS = [
 
 
 def check_user_input(text: str) -> dict:
-    """Returns {blocked, rule, reply, injection}."""
+    """G1 + G2 on the user's text. Returns {blocked, rule, reply, injection}.
+    A blocked request gets the fixed reply of its rule, and the LLM is never called."""
     low = text.lower()
     injection = any(re.search(p, low) for p in INJECTION_PATTERNS)
     for rule, pattern, reply in BLOCK_RULES:
@@ -87,7 +89,8 @@ SAFE_FALLBACK = ("I can't certify any message or link as safe: I only analyse th
 
 
 def check_output(reply: str, last_risk: dict | None) -> tuple[str, list]:
-    """Return (possibly rewritten reply, list of triggered guardrail names)."""
+    """G4 on the LLM's final reply. A "safe" claim replaces the whole reply; a "submitted" claim is corrected.
+    Return (possibly rewritten reply, list of triggered guardrail names)."""
     triggered = []
     if UNSAFE_CLAIMS.search(reply):
         triggered.append("no_safe_verdict")

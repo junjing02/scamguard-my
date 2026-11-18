@@ -21,7 +21,7 @@ python app.py                # downloads the model once (~9 GB), then open http:
 | `app.py` | Start file: loads the model and launches the interface |
 | `scamguard/tools.py` | 6 tool functions over a small JSON dataset (URLs analysed as text, never visited) |
 | `scamguard/validation.py` | Tool schemas shown to the LLM + allow list and argument validation |
-| `scamguard/guardrails.py` | Python guardrails: blocked requests, injection flag, PII redaction, output check |
+| `scamguard/guardrails.py` | Python guardrails: blocked requests, injection flag, PII redaction, output check, procedure check |
 | `scamguard/agent.py` | Agent loop: the LLM proposes calls, Python validates and runs them |
 | `scamguard/llm.py` | Hugging Face `transformers` wrapper |
 | `scamguard/app.py` | Gradio interface that shows every function call |

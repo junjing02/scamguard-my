@@ -2,7 +2,6 @@
 plumbing (validation, guardrails, tools, loop). Run:  python tests_offline.py
 These test the CODE, not the real model's decisions: run the app to see what the real LLM does."""
 import json
-import re
 
 from scamguard.agent import ScamGuardAgent, parse_tool_calls
 from scamguard.guardrails import check_output, check_user_input, redact_pii
@@ -12,36 +11,38 @@ from scamguard.validation import validate_call
 
 
 def call(name, **args):
+    """The text a model writes to call a tool (Qwen2.5 JSON style)."""
     return "<tool_call>\n" + json.dumps({"name": name, "arguments": args}) + "\n</tool_call>"
 
 
 class MockLLM:
-    """Follows the intended procedure; `script` can override for special cases."""
+    """Plays the model. By default it follows the procedure: patterns -> each URL -> risk score -> answer.
+    `script(messages) -> text` replaces this behaviour for special cases."""
     def __init__(self, script=None):
         self.script = script
 
     def generate(self, messages, tools):
         if self.script:
             return self.script(messages)
-        last_user = [m for m in messages if m["role"] == "user"][-1]["content"]
-        tool_msgs = [m for m in messages[messages.index([m for m in messages if m["role"] == "user"][-1]):] if m["role"] == "tool"]
-        done = [m["name"] for m in tool_msgs]
-        if "match_scam_patterns" not in done:
-            return call("match_scam_patterns", text=last_user)
-        urls = []
-        for m in tool_msgs:
-            if m["name"] == "match_scam_patterns":
-                urls = json.loads(m["content"])["urls_found"]
-        for u in urls:
-            if done.count("analyze_url") < len(urls) and u not in [json.loads(x["content"]).get("url") for x in tool_msgs if x["name"] == "analyze_url"]:
-                return call("analyze_url", url=u)
-        if "calculate_risk_score" not in done:
+        last = max(i for i, m in enumerate(messages) if m["role"] == "user")   # the message being checked
+        results = {}                                     # tool name -> its results since that message
+        for m in messages[last:]:
+            if m["role"] == "tool":
+                results.setdefault(m["name"], []).append(json.loads(m["content"]))
+        if "match_scam_patterns" not in results:
+            return call("match_scam_patterns", text=messages[last]["content"])
+        checked = [r.get("url") for r in results.get("analyze_url", [])]
+        for url in results["match_scam_patterns"][-1]["urls_found"]:
+            if url not in checked:
+                return call("analyze_url", url=url)
+        if "calculate_risk_score" not in results:
             return call("calculate_risk_score")
         return "This message shows several scam signals. Do not click the link."
 
 
 ok = 0
 def check(name, cond, extra=""):
+    """Print PASS/FAIL for one check and stop at the first failure."""
     global ok
     print(("PASS " if cond else "FAIL ") + name + (" " + extra if extra and not cond else ""))
     ok += bool(cond)

@@ -1,4 +1,12 @@
-"""The agent loop: LLM proposes tool calls -> Python validates -> Python executes -> result goes back to the LLM."""
+"""The agent loop: LLM proposes tool calls -> Python validates -> Python executes -> result goes back to the LLM.
+
+One message = one call of ScamGuardAgent.run_turn():
+  1. G1/G2/G3 guardrails check the user text before the LLM sees it.
+  2. Loop: the LLM answers with tool calls or with a final reply.
+     Each tool call is validated (allow list + argument rules), run, logged, and its result is sent back.
+  3. G5 sends one reminder if the LLM answers before it has finished the steps.
+  4. G4 checks the final reply, and Python adds the risk level computed by the tools.
+"""
 import json
 import re
 
@@ -23,6 +31,7 @@ RULES:
 - Reply in the user's language (English or Bahasa Melayu). Keep answers short and practical.
 """
 
+# <tool_call> ... </tool_call> blocks, and an unclosed block when the output was cut off
 _TAG = re.compile(r"<tool_call>\s*(.*?)\s*</tool_call>", re.S)
 _OPEN_TAG = re.compile(r"<tool_call>\s*(\{.*\}|<function=.*)", re.S)
 # Qwen3.5 / Qwen3-Coder XML style: <function=name><parameter=key>value</parameter></function>
@@ -31,6 +40,7 @@ _XML_PARAM = re.compile(r"<parameter=([^>\s]+)>(.*?)</parameter>", re.S)
 
 
 def _as_call(obj):
+    """Turn one parsed JSON object into {"name", "arguments"}. Models use slightly different key names."""
     name = obj.get("name") or obj.get("function")
     if isinstance(name, dict):  # {"function": {"name":..., "arguments":...}}
         obj, name = name, name.get("name")
@@ -69,11 +79,14 @@ def parse_tool_calls(text):
 
 
 class ScamGuardAgent:
+    """Runs the tool-calling loop. `llm` is any object with generate(messages, tools) -> text."""
+
     def __init__(self, llm, max_steps=6):
         self.llm = llm
         self.max_steps = max_steps
 
     def _build_messages(self, session, user_content):
+        """System prompt + the last 4 question/answer pairs + the new message."""
         msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
         for u, a in session.history[-4:]:          # short memory, plain text only
             msgs += [{"role": "user", "content": u}, {"role": "assistant", "content": a}]
@@ -81,7 +94,7 @@ class ScamGuardAgent:
         return msgs
 
     def run_turn(self, session, user_text):
-        """Returns dict(reply, calls (this turn), notes)."""
+        """Check one user message. Returns dict(reply, calls (this turn), notes)."""
         session.turn += 1
         start = len(session.call_log)
         notes = []
@@ -120,7 +133,7 @@ class ScamGuardAgent:
                 final_text = "The language model is unavailable right now, so I can't analyse this message. Please try again."
                 break
             calls, text = parse_tool_calls(raw)
-            if not calls:
+            if not calls:                        # no tool call: the model wants to give its final answer
                 # G5: one reminder if the model answers before finishing the steps; the model still decides
                 gap = None if reminded else procedure_gap(session.call_log[start:])
                 if gap and step < self.max_steps:
@@ -132,6 +145,7 @@ class ScamGuardAgent:
                 final_text = text or "I could not produce an answer. Please rephrase your message."
                 break
 
+            # keep the model's calls in the conversation, then run each one and send back its result
             messages.append({"role": "assistant", "content": text, "tool_calls": [
                 {"type": "function", "function": {"name": c["name"] or "invalid",
                                                   "arguments": c["arguments"] if isinstance(c["arguments"], dict) else {}}}
@@ -153,7 +167,7 @@ class ScamGuardAgent:
                         session.log(step, c["name"], args, "error", result)
                 messages.append({"role": "tool", "name": c["name"] or "invalid",
                                  "content": json.dumps(result, ensure_ascii=False)})
-        else:
+        else:                                    # the loop used all its steps without a final answer
             final_text = ("I wasn't able to finish the analysis within my step limit. "
                           "Here is what I found so far; please treat it as incomplete.")
 
@@ -167,7 +181,7 @@ class ScamGuardAgent:
             final_text += f"\n\n**Risk level (computed by the tools): {r['level'].upper()}** (score {r['score']}). This is a heuristic, not a guarantee."
         if session.pending_report:
             final_text += "\n\nA report draft is ready. It has NOT been submitted: use the Confirm or Cancel button."
-        for n in notes:
+        for n in notes:                          # repeat the "never share these" warning in the reply
             if n.startswith("Sensitive"):
                 final_text += "\n\n" + n
 

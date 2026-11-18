@@ -104,6 +104,7 @@ _NOTHING_YET = "### What the agent did\n_Nothing yet._"
 
 
 def _short(obj, n=350):
+    """Text or JSON, cut to n characters for the tables."""
     s = json.dumps(obj, ensure_ascii=False) if not isinstance(obj, str) else obj
     return s if len(s) <= n else s[: n - 3] + "..."
 
@@ -140,8 +141,9 @@ def _expected_html(steps, result, note):
 
 
 def _verdict(session, calls):
+    """Choose the verdict card for this message. The level comes from the tools, never from the LLM text."""
     if any(c["status"] == "blocked" for c in calls):
-        return _badge("REFUSED", _PURPLE,"A safety rule blocked this request. The model never saw it.",
+        return _badge("REFUSED", _PURPLE, "A safety rule blocked this request. The model never saw it.",
                       "For help with a scam, call the National Scam Response Centre (NSRC) on 997.")
     if session.last_risk:
         r = session.last_risk
@@ -185,6 +187,7 @@ def _summary(fn, result):
 
 
 def _step_title(c):
+    """A readable title for one log entry: a tool step, a safety rule or a model error."""
     if c["function"] == "(guardrail)":
         rule = c["arguments"].get("rule", "") if isinstance(c["arguments"], dict) else ""
         return f"Safety rule {_RULE_TO_G.get(rule, '')}".strip()
@@ -194,6 +197,7 @@ def _step_title(c):
 
 
 def _calls_md(calls, seconds=None):
+    """The 'What the agent did' panel: one block per step with the function, its arguments and the result."""
     took = f" · {seconds:.0f} s" if seconds is not None else ""
     if not calls:
         return f"### What the agent did{took}\n_The model answered without calling any function._"
@@ -228,11 +232,14 @@ def _toolbox_md(calls=()):
     return "\n".join(rows)
 
 
+# ------------------------------------------------------------------ interface
 def build_ui(llm):
+    """Build the Gradio page. Each browser tab gets its own Session (gr.State)."""
     agent = ScamGuardAgent(llm)
     model_name = getattr(llm, "model_id", "a mock model")
 
     def report_view(session):
+        """Show the Confirm / Cancel box only while a report draft is waiting."""
         p = session.pending_report
         md = (f"### 📝 Report draft · waiting for you\n**{p['report_id']}** · type: {p['scam_type']}  \n{p['summary']}\n\n"
               "_Confirm saves it on this computer only (a simulation). Nothing is sent to anyone. "
@@ -240,10 +247,12 @@ def build_ui(llm):
         return md, gr.update(visible=bool(p))
 
     def log_rows(session):
+        """All calls of the session, as rows for the log table."""
         return [[c["turn"], c["step"], c["function"], _short(c["arguments"], 200), c["status"], _short(c["result"])]
                 for c in session.call_log]
 
     def pick_case(label):
+        """An example was picked: put its message in the box and show its expected result."""
         if not label:
             return gr.update(), ""
         msg, steps, result, note = _CASES[label]
@@ -272,11 +281,13 @@ def build_ui(llm):
                 _toolbox_md(result["calls"]), *report_view(session), result["calls"], log_rows(session), session, done)
 
     def on_report(chat, session, confirm):
+        """The Confirm or Cancel button: the only way a report draft is saved or removed."""
         session = session or Session()
         msg = session.confirm_report() if confirm else session.cancel_report()
         return (chat or []) + [{"role": "assistant", "content": msg}], *report_view(session), session
 
     def on_clear():
+        """Clear all: an empty chat, panels and a new Session (the agent forgets everything)."""
         return ([], _badge(*_READY), _NOTHING_YET, _toolbox_md(), "", gr.update(visible=False), None, [], Session(),
                 gr.update(interactive=True, value="Check"), None, "", "")
 
@@ -319,6 +330,7 @@ def build_ui(llm):
             last = gr.JSON(label="Calls for this message (full JSON)")
             log = gr.Dataframe(headers=LOG_HEADERS, wrap=True, interactive=False, label="All calls in this session")
 
+        # events
         case.change(pick_case, case, [box, expected])
         outs = [chat, verdict, calls_md, toolbox, report_md, report_box, last, log, session, send]
         for trigger in (send.click, box.submit):

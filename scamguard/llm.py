@@ -1,4 +1,4 @@
-"""LLM wrapper: a free instruction-tuned Hugging Face model run locally (Colab GPU, Apple Silicon Mac or CPU)
+"""LLM wrapper: a free instruction-tuned Hugging Face model run locally (NVIDIA GPU, Apple Silicon Mac or CPU)
 with native tool calling.
 
 The model's chat template accepts `tools=[...]` and makes the model answer with a <tool_call> block:
@@ -7,13 +7,14 @@ agent.parse_tool_calls() parses both.
 """
 import re
 
-_THINK = re.compile(r"<think>.*?(</think>|$)", re.S)
+_THINK = re.compile(r"<think>.*?(</think>|$)", re.S)   # a reasoning part, if the model writes one
 
 
 class HFChatModel:
+    """Loads the model once, then generate() turns a chat (messages + tool schemas) into the model's raw text."""
+
     def __init__(self, model_id="Qwen/Qwen3.5-4B", load_in_4bit=False, max_new_tokens=400, device=None):
-        import torch
-        import transformers
+        import torch                                       # imported here: the offline tests do not need torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         self.torch = torch
@@ -31,9 +32,7 @@ class HFChatModel:
             kwargs["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16, bnb_4bit_quant_type="nf4")
         else:
-            # transformers >= 4.56 renamed torch_dtype to dtype (Colab installs the latest version)
-            major, minor = (int(x) for x in transformers.__version__.split(".")[:2])
-            kwargs["dtype" if (major, minor) >= (4, 56) else "torch_dtype"] = dtype
+            kwargs["dtype"] = dtype                        # fp16 on a GPU, fp32 on a CPU
         try:
             self.model = AutoModelForCausalLM.from_pretrained(model_id, **kwargs)
         except ValueError:                                 # multimodal models such as Qwen3.5 (text use only)
@@ -45,6 +44,7 @@ class HFChatModel:
         self.model_id = model_id
 
     def generate(self, messages, tools):
+        """Greedy (repeatable) generation. Returns only the new text, without special tokens or <think>."""
         # enable_thinking=False: Qwen3/3.5 answer directly (no long <think> part); older templates ignore it
         prompt = self.tokenizer.apply_chat_template(
             messages, tools=tools, add_generation_prompt=True, tokenize=False, enable_thinking=False)

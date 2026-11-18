@@ -1,5 +1,8 @@
-"""Tool functions. Pure Python over the small JSON dataset. No network access at all:
-URLs are analysed as text and are NEVER visited."""
+"""The 6 tool functions the LLM can ask for. Pure Python over the small JSON dataset in data/.
+No network access at all: URLs are analysed as text and are NEVER visited.
+
+Every tool takes the Session first. The check tools add their findings to session.evidence,
+and calculate_risk_score turns that evidence into a risk level."""
 import json
 import os
 import re
@@ -12,6 +15,7 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
 
 def _load(name):
+    """Read one JSON file from the data folder."""
     with open(os.path.join(DATA_DIR, name), encoding="utf-8") as f:
         return json.load(f)
 
@@ -24,10 +28,14 @@ URL_FLAGS = _load("url_flags.json")
 _TLDS = "|".join(sorted(URL_FLAGS["common_tlds_for_extraction"], key=len, reverse=True))
 _URL_RE = re.compile(
     r"(?i)((?:https?://|www\.)[^\s<>\"']+|\b(?:[a-z0-9-]+\.)+(?:" + _TLDS + r")\b(?:/[^\s<>\"']*)?)")
-_SECOND_LEVEL = {"com", "net", "org", "gov", "edu", "co"}
+_SECOND_LEVEL = {"com", "net", "org", "gov", "edu", "co"}   # as in example.com.my
+
+
+# ------------------------------------------------------------------ helpers
 
 
 def _extract_urls(text):
+    """Find links and bare domains in a message, without duplicates and without trailing punctuation."""
     urls = []
     for m in _URL_RE.finditer(text):
         u = m.group(1).rstrip(".,;:)!?")
@@ -37,13 +45,15 @@ def _extract_urls(text):
 
 
 def _has_brand(host, kw):
-    # short keywords (pos, rhb, hlb...) must be a whole label/token, or "compose.com" would look like Pos Malaysia
+    """True if a brand keyword appears in the host name.
+    Short keywords (pos, rhb, hlb...) must be a whole token, or "compose.com" would look like Pos Malaysia."""
     if len(kw) <= 3:
         return kw in re.split(r"[.-]", host)
     return kw in host
 
 
 def _registered_domain(host):
+    """The part of the host that the owner registered: "a.b.maybank2u.com.my" -> "maybank2u.com.my"."""
     labels = host.split(".")
     if len(labels) >= 3 and labels[-2] in _SECOND_LEVEL and len(labels[-1]) == 2:
         return ".".join(labels[-3:])
@@ -52,6 +62,8 @@ def _registered_domain(host):
 
 # ------------------------------------------------------------------ tools
 def match_scam_patterns(session, text):
+    """Tool 1: compare the message with the known scam patterns and list the URLs in it.
+    Each pattern counts once, with its weight, towards the pattern score."""
     low = text.lower()
     ev = session.evidence
     matched = []
@@ -74,6 +86,7 @@ def match_scam_patterns(session, text):
 
 
 def analyze_url(session, url):
+    """Tool 2: check one URL as text. Official domains give no points; each warning sign adds its weight."""
     raw = url.strip()
     parsed = urlparse(raw if "://" in raw else "//" + raw)
     host = (parsed.hostname or "").lower()
@@ -87,6 +100,7 @@ def analyze_url(session, url):
     def add(flag, weight, why):
         flags.append({"flag": flag, "weight": weight, "why": why})
 
+    # an exact official domain, or a subdomain of it (www.maybank2u.com.my), is official
     official = None
     for org in ORGS:
         for d in org["official_domains"]:
@@ -102,7 +116,7 @@ def analyze_url(session, url):
         add("punycode", 3, "Internationalised (look-alike character) domain.")
     if "@" in raw.split("//")[-1].split("/")[0]:
         add("at_symbol", 3, "'@' in the address can disguise the real destination.")
-    if not official:
+    if not official:                     # a brand name on a domain that is NOT official: a look-alike
         for org in ORGS:
             if any(_has_brand(host, kw) for kw in org["brand_keywords"]):
                 add("brand_lookalike", 4, f"Contains the name of {org['name']} but is NOT one of its official domains.")
@@ -133,6 +147,7 @@ def analyze_url(session, url):
 
 
 def lookup_scam_type(session, keyword):
+    """Tool 3: find up to 3 scam types that match a keyword, with their signs and what to do."""
     q = keyword.lower().strip()
     scored = []
     for t in SCAM_TYPES:
@@ -150,14 +165,18 @@ def lookup_scam_type(session, keyword):
                                          for _, t in scored[:3]]}
 
 
+# names that are too general to point at one organisation
 _GENERIC = {"bank", "the bank", "my bank", "berhad", "malaysia", "government", "agency", "courier"}
 
 
 def _word_in(needle, hay):
+    """True if `needle` appears in `hay` as whole words ("rhb" matches "rhb bank", not "rhbx")."""
     return re.search(r"(?<!\w)" + re.escape(needle) + r"(?!\w)", hay) is not None
 
 
 def get_official_contact(session, organisation):
+    """Tool 4: official domains and contact details of a known organisation, or not_found.
+    It never guesses: an organisation that is not in the dataset gets not_found."""
     q = organisation.lower().strip()
     if q in _GENERIC:              # "bank" alone must not silently become Maybank
         return {"status": "not_found", "message": "That name is too general. Please name the organisation.",
@@ -175,6 +194,8 @@ def get_official_contact(session, organisation):
 
 
 def calculate_risk_score(session):
+    """Tool 5: add up the evidence of this message and give a level. There is no "safe" level:
+    8+ High, 4-7 Medium, 1-3 Low, 0 with an official domain Low, else "Can't tell"."""
     ev = session.evidence
     total = ev["pattern_score"] + ev["url_score"]
     if total >= 8:
@@ -195,6 +216,8 @@ def calculate_risk_score(session):
 
 
 def draft_report(session, summary, scam_type="other"):
+    """Tool 6: prepare a report draft with personal numbers hidden. It is NOT sent:
+    only the Confirm button in the interface (Session.confirm_report) can save it."""
     clean, found = redact_pii(summary)
     rid = "R" + datetime.now().strftime("%Y%m%d%H%M%S")
     session.pending_report = {"report_id": rid, "scam_type": scam_type, "summary": clean,
@@ -203,6 +226,7 @@ def draft_report(session, summary, scam_type="other"):
             "message": "Draft prepared but NOT submitted. The user must press the Confirm button in the interface."}
 
 
+# function name (as the LLM writes it) -> Python function
 TOOL_FUNCS = {
     "match_scam_patterns": match_scam_patterns,
     "analyze_url": analyze_url,
