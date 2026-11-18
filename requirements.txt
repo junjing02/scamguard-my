@@ -1,0 +1,5 @@
+gradio>=5.0
+transformers>=5.2    # first version with Qwen3.5 support
+accelerate
+torch
+# bitsandbytes   # optional: only for load_in_4bit=True on an NVIDIA GPU

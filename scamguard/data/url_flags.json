@@ -1,0 +1,7 @@
+{
+  "_note": "Heuristics for analyze_url. The URL is analysed as text only and is never visited.",
+  "suspicious_tlds": ["xyz", "top", "click", "icu", "buzz", "vip", "cyou", "shop", "online", "site", "live", "work", "rest", "cfd", "sbs"],
+  "shorteners": ["bit.ly", "tinyurl.com", "t.co", "s.id", "shorturl.at", "cutt.ly", "is.gd", "rb.gy", "ow.ly"],
+  "suspicious_words": ["secure", "verify", "login", "update", "refund", "claim", "support", "account", "confirm"],
+  "common_tlds_for_extraction": ["com", "net", "org", "my", "gov", "edu", "co", "io", "info", "me", "ly", "id", "to", "cc", "app", "link", "page", "xyz", "top", "click", "icu", "buzz", "vip", "cyou", "shop", "online", "site", "live", "work", "rest", "cfd", "sbs"]
+}
