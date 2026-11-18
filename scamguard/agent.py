@@ -2,7 +2,7 @@
 import json
 import re
 
-from .guardrails import check_output, check_user_input, redact_pii
+from .guardrails import check_output, check_user_input, procedure_gap, redact_pii
 from .tools import TOOL_FUNCS
 from .validation import TOOL_SCHEMAS, validate_call
 
@@ -110,6 +110,7 @@ class ScamGuardAgent:
         session.reset_evidence()
         messages = self._build_messages(session, user_content)
         final_text = None
+        reminded = False
 
         for step in range(1, self.max_steps + 1):
             try:
@@ -120,6 +121,14 @@ class ScamGuardAgent:
                 break
             calls, text = parse_tool_calls(raw)
             if not calls:
+                # G5: one reminder if the model answers before finishing the steps; the model still decides
+                gap = None if reminded else procedure_gap(session.call_log[start:])
+                if gap and step < self.max_steps:
+                    reminded = True
+                    session.log(step, "(guardrail)", {"rule": "procedure_check"}, "reminded", gap)
+                    messages += [{"role": "assistant", "content": text},
+                                 {"role": "user", "content": f"[PROCEDURE CHECK from the system: {gap}]"}]
+                    continue
                 final_text = text or "I could not produce an answer. Please rephrase your message."
                 break
 

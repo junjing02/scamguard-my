@@ -80,6 +80,7 @@ GUARD_INFO = [
     ("G2", "Flags prompt injection", {"injection_detected"}),
     ("G3", "Hides IC, card, OTP/TAC numbers", {"pii_redaction"}),
     ("G4", "Rewrites 'safe' / 'submitted' claims", {"no_safe_verdict", "no_false_submission"}),
+    ("G5", "Reminds the model to finish the steps with the tools", {"procedure_check"}),
 ]
 _TOOL_NAMES = {name for name, _, _ in TOOL_INFO}
 _STEP_TITLE = {name: title for name, title, _ in TOOL_INFO}
@@ -95,7 +96,7 @@ _ADVICE = {
     "Can't tell": "No signs either way. This does NOT mean that the message is safe.",
 }
 _ICON = {"ok": "✅", "not_found": "❔", "draft_created": "📝", "rejected": "⛔", "error": "❌",
-         "blocked": "🛑", "flagged": "⚠️", "applied": "🛡️"}
+         "blocked": "🛑", "flagged": "⚠️", "applied": "🛡️", "reminded": "🔁"}
 _GREY = "#546e7a"
 _PURPLE = "#6a1b9a"
 _READY = ("READY", _GREY, "Pick an example or paste your own message, then press Check.")
@@ -312,7 +313,7 @@ def build_ui(llm):
                         confirm = gr.Button("Confirm report (simulated)", variant="primary")
                         cancel = gr.Button("Cancel")
                 calls_md = gr.Markdown(_NOTHING_YET)
-                with gr.Accordion("What this agent can do: 6 tools and 4 safety rules", open=False):
+                with gr.Accordion("What this agent can do: 6 tools and 5 safety rules", open=False):
                     toolbox = gr.Markdown(_toolbox_md())
         with gr.Accordion("Full details: raw JSON for this message, and the log of all messages", open=False):
             last = gr.JSON(label="Calls for this message (full JSON)")

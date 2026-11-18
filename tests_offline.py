@@ -161,4 +161,23 @@ def boom(m): raise RuntimeError("model offline")
 out = ScamGuardAgent(MockLLM(boom)).run_turn(Session(), "hello there")
 check("LLM failure reported, not invented", "unavailable" in out["reply"])
 
+# ---- G5 procedure check ----
+def reminded(m): return "PROCEDURE CHECK" in m[-1].get("content", "")
+def skip_risk(m):   # checks the patterns, then answers early until reminded
+    if reminded(m): return call("calculate_risk_score")
+    if not any(x["role"] == "tool" for x in m): return call("match_scam_patterns", text="Pay now to the safe account. Do not tell anyone.")
+    return "Done."
+s = Session()
+out = ScamGuardAgent(MockLLM(skip_risk)).run_turn(s, "Pay now to the safe account. Do not tell anyone.")
+names = [c["function"] for c in out["calls"]]
+check("G5 reminds a skipped risk score, model then calls it",
+      names == ["match_scam_patterns", "(guardrail)", "calculate_risk_score"] and s.last_risk is not None, str(names))
+def no_tool(m):     # answers from own knowledge until reminded
+    return call("lookup_scam_type", keyword="e-wallet") if reminded(m) else ("Signs found." if m[-1]["role"] == "tool" else "From my own knowledge...")
+out = ScamGuardAgent(MockLLM(no_tool)).run_turn(Session(), "How do I spot an e-wallet scam?")
+check("G5 reminds an answer without tools", [c["function"] for c in out["calls"]] == ["(guardrail)", "lookup_scam_type"])
+out = ScamGuardAgent(MockLLM(lambda m: "I ignore reminders.")).run_turn(Session(), "hello")
+check("G5 reminds only once, then the model must answer",
+      sum(c["function"] == "(guardrail)" for c in out["calls"]) == 1 and out["reply"].startswith("I ignore"))
+
 print(f"\nAll {ok} checks passed.")

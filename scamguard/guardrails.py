@@ -4,6 +4,7 @@ G1  Input guardrail  : refuse tracing / contacting / retaliating against scammer
 G2  Injection check  : flag attempts to override the agent's rules (the LLM is warned, output is still guarded).
 G3  PII redaction    : IC numbers, card numbers and OTP/TAC digits are removed before the LLM sees them.
 G4  Output guardrail : the agent may never certify something as "safe", and may never claim a report was submitted.
+G5  Procedure check  : before the final answer, the model must have used the dataset tools and finished the steps.
 """
 from __future__ import annotations
 
@@ -99,3 +100,25 @@ def check_output(reply: str, last_risk: dict | None) -> tuple[str, list]:
         triggered.append("no_false_submission")
         reply = FALSE_SUBMIT.sub("report draft is ready but NOT submitted: you must press Confirm", reply)
     return reply, triggered
+
+
+# ---------- G5: procedure check ----------
+def procedure_gap(calls: list) -> str | None:
+    """Return a reminder if the model tries to answer before it used the dataset tools and finished the
+    procedure, else None. `calls` = this message's call log: the record of which steps are done."""
+    done = [c for c in calls if c["status"] == "ok"]
+    names = [c["function"] for c in done]
+    if not names:
+        return ("You answered without calling any tool. Answer ONLY from tool results. Call match_scam_patterns "
+                "for a message to check; lookup_scam_type for any question about a kind of scam (for example "
+                "e-wallet, parcel, job, investment, love, Macau, bank phishing, tax refund, utility bill); "
+                "get_official_contact for an organisation. Only if the question is not about scams at all, "
+                "say that you can only answer from your scam dataset.")
+    if "match_scam_patterns" in names:
+        urls = next(c["result"]["urls_found"] for c in reversed(done) if c["function"] == "match_scam_patterns")
+        if names.count("analyze_url") < len(urls):
+            return (f"You found these links but did not check them all: {urls}. "
+                    "Call analyze_url for each one, then calculate_risk_score.")
+        if "calculate_risk_score" not in names:
+            return "You checked the patterns but did not calculate the risk. Call calculate_risk_score before you answer."
+    return None
