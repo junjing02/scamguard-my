@@ -250,8 +250,12 @@ def _toolbox_md(calls=()):
     for name, _, what in TOOL_INFO:
         ok = sum(1 for c in calls if c["function"] == name and c["status"] != "rejected")
         bad = sum(1 for c in calls if c["function"] == name and c["status"] == "rejected")
-        mark = " ".join(m for m in (f"✅ ×{ok}" if ok else "", f"⛔ ×{bad}" if bad else "") if m) or "—"
-        rows.append(f"| `{name}` | {what} | {mark} |")
+        marks = []
+        if ok:
+            marks.append(f"✅ ×{ok}")
+        if bad:
+            marks.append(f"⛔ ×{bad}")
+        rows.append(f"| `{name}` | {what} | {' '.join(marks) or '—'} |")
     unknown = sorted({str(c["function"]) for c in calls
                       if c["function"] not in _TOOL_NAMES and not str(c["function"]).startswith("(")})
     if unknown:

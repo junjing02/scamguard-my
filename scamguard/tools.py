@@ -32,6 +32,9 @@ _SECOND_LEVEL = {"com", "net", "org", "gov", "edu", "co"}   # as in example.com.
 
 
 # ------------------------------------------------------------------ helpers
+def _word_in(needle, hay):
+    """True if `needle` appears in `hay` as whole words ("rhb" matches "rhb bank", not "rhbx")."""
+    return re.search(r"(?<!\w)" + re.escape(needle) + r"(?!\w)", hay) is not None
 
 
 def _extract_urls(text):
@@ -68,16 +71,15 @@ def match_scam_patterns(session, text):
     ev = session.evidence
     matched = []
     for p in PATTERNS:
-        hits = [kw for kw in p["keywords"]
-                if re.search(r"(?<!\w)" + re.escape(kw.lower()) + r"(?!\w)", low)]
-        if hits:
-            matched.append({"id": p["id"], "name": p["name"], "matched_keywords": hits,
-                            "weight": p["weight"], "explanation": p["explanation"]})
-    for m in matched:
-        if m["id"] not in ev["pattern_ids"]:
-            ev["pattern_ids"].append(m["id"])
-            ev["pattern_score"] += m["weight"]
-            ev["reasons"].append(f"Pattern: {m['name']} ({', '.join(m['matched_keywords'][:3])})")
+        hits = [kw for kw in p["keywords"] if _word_in(kw.lower(), low)]
+        if not hits:
+            continue
+        matched.append({"id": p["id"], "name": p["name"], "matched_keywords": hits,
+                        "weight": p["weight"], "explanation": p["explanation"]})
+        if p["id"] not in ev["pattern_ids"]:     # a repeated call must not count a pattern twice
+            ev["pattern_ids"].append(p["id"])
+            ev["pattern_score"] += p["weight"]
+            ev["reasons"].append(f"Pattern: {p['name']} ({', '.join(hits[:3])})")
     note = ("No known scam pattern matched. This does NOT mean the message is safe: my pattern list is small."
             if not matched else "Matched patterns are signals, not proof.")
     return {"status": "ok", "matches": matched,
@@ -110,11 +112,12 @@ def analyze_url(session, url):
         add("ip_address", 3, "Uses a raw IP address instead of a normal domain name.")
     if host in URL_FLAGS["shorteners"] or reg in URL_FLAGS["shorteners"]:
         add("url_shortener", 2, "A shortened link hides the real destination.")
-    if host.split(".")[-1] in URL_FLAGS["suspicious_tlds"]:
-        add("suspicious_tld", 2, f".{host.split('.')[-1]} is a TLD commonly abused in scams.")
+    tld = host.split(".")[-1]
+    if tld in URL_FLAGS["suspicious_tlds"]:
+        add("suspicious_tld", 2, f".{tld} is a TLD commonly abused in scams.")
     if "xn--" in host:
         add("punycode", 3, "Internationalised (look-alike character) domain.")
-    if "@" in raw.split("//")[-1].split("/")[0]:
+    if "@" in raw.split("//")[-1].split("/")[0]:   # an "@" before the first "/"
         add("at_symbol", 3, "'@' in the address can disguise the real destination.")
     if not official:                     # a brand name on a domain that is NOT official: a look-alike
         for org in ORGS:
@@ -169,11 +172,6 @@ def lookup_scam_type(session, keyword):
 _GENERIC = {"bank", "the bank", "my bank", "berhad", "malaysia", "government", "agency", "courier"}
 
 
-def _word_in(needle, hay):
-    """True if `needle` appears in `hay` as whole words ("rhb" matches "rhb bank", not "rhbx")."""
-    return re.search(r"(?<!\w)" + re.escape(needle) + r"(?!\w)", hay) is not None
-
-
 def get_official_contact(session, organisation):
     """Tool 4: official domains and contact details of a known organisation, or not_found.
     It never guesses: an organisation that is not in the dataset gets not_found."""
@@ -202,15 +200,14 @@ def calculate_risk_score(session):
         level = "High"
     elif total >= 4:
         level = "Medium"
-    elif total >= 1:
-        level = "Low"
-    elif ev["official_match"]:
+    elif total >= 1 or ev["official_match"]:
         level = "Low"
     else:
         level = "Can't tell"
-    caveat = ("Heuristic score from a small rule set. It is never a guarantee, and I cannot see the sender or the live website.")
     if level == "Can't tell":
         caveat = "I found no signals either way (or no checks were run), so I cannot judge this message."
+    else:
+        caveat = "Heuristic score from a small rule set. It is never a guarantee, and I cannot see the sender or the live website."
     session.last_risk = {"level": level, "score": total, "reasons": list(ev["reasons"])}
     return {"status": "ok", "level": level, "score": total, "reasons": list(ev["reasons"]), "caveat": caveat}
 

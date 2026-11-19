@@ -6,8 +6,6 @@ G3  PII redaction    : IC numbers, card numbers and OTP/TAC digits are removed b
 G4  Output guardrail : the agent may never certify something as "safe", and may never claim a report was submitted.
 G5  Procedure check  : before the final answer, the model must have used the dataset tools and finished the steps.
 """
-from __future__ import annotations
-
 import re
 
 # ---------- G3: PII redaction ----------
@@ -16,7 +14,7 @@ _CARD = re.compile(r"\b(?:\d[ -]?){13,19}\b")
 _OTP = re.compile(r"(?i)\b(otp|tac|pin|cvv)\b(\D{0,15})(\d{3,8})\b")
 
 
-def redact_pii(text: str):
+def redact_pii(text):
     """Hide IC, card and OTP/TAC/PIN numbers. Return (clean_text, list_of_found_types)."""
     found = []
     if _IC.search(text):
@@ -64,7 +62,7 @@ INJECTION_PATTERNS = [
 ]
 
 
-def check_user_input(text: str) -> dict:
+def check_user_input(text):
     """G1 + G2 on the user's text. Returns {blocked, rule, reply, injection}.
     A blocked request gets the fixed reply of its rule, and the LLM is never called."""
     low = text.lower()
@@ -88,7 +86,7 @@ SAFE_FALLBACK = ("I can't certify any message or link as safe: I only analyse th
                  "or the live website. ")
 
 
-def check_output(reply: str, last_risk: dict | None) -> tuple[str, list]:
+def check_output(reply, last_risk):
     """G4 on the LLM's final reply. A "safe" claim replaces the whole reply; a "submitted" claim is corrected.
     Return (possibly rewritten reply, list of triggered guardrail names)."""
     triggered = []
@@ -106,7 +104,7 @@ def check_output(reply: str, last_risk: dict | None) -> tuple[str, list]:
 
 
 # ---------- G5: procedure check ----------
-def procedure_gap(calls: list) -> str | None:
+def procedure_gap(calls):
     """Return a reminder if the model tries to answer before it used the dataset tools and finished the
     procedure, else None. `calls` = this message's call log: the record of which steps are done."""
     done = [c for c in calls if c["status"] == "ok"]
@@ -118,7 +116,8 @@ def procedure_gap(calls: list) -> str | None:
                 "get_official_contact for an organisation. Only if the question is not about scams at all, "
                 "say that you can only answer from your scam dataset.")
     if "match_scam_patterns" in names:
-        urls = next(c["result"]["urls_found"] for c in reversed(done) if c["function"] == "match_scam_patterns")
+        last_check = [c for c in done if c["function"] == "match_scam_patterns"][-1]
+        urls = last_check["result"]["urls_found"]
         if names.count("analyze_url") < len(urls):
             return (f"You found these links but did not check them all: {urls}. "
                     "Call analyze_url for each one, then calculate_risk_score.")

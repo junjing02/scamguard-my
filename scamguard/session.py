@@ -29,7 +29,7 @@ class Session:
                               "arguments": arguments, "status": status, "result": result})
 
     # ----- human-in-the-loop report handling (NOT callable by the LLM) -----
-    def confirm_report(self) -> str:
+    def confirm_report(self):
         """Called by the Confirm button only: save the draft to a local file (a simulation, nothing is sent)."""
         if not self.pending_report:
             return "There is no pending report to confirm."
@@ -42,7 +42,7 @@ class Session:
         return (f"Report {rid} confirmed and saved locally (this is a simulation: nothing was sent to any authority). "
                 "To report for real, call the National Scam Response Centre (NSRC) on 997.")
 
-    def cancel_report(self) -> str:
+    def cancel_report(self):
         """Called by the Cancel button only: delete the draft."""
         if not self.pending_report:
             return "There is no pending report."

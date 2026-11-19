@@ -47,6 +47,24 @@ ALLOWED = {s["function"]["name"]: s["function"]["parameters"] for s in TOOL_SCHE
 _TYPES = {"string": str, "integer": int, "number": (int, float), "boolean": bool}
 
 
+def _check_value(key, value, spec):
+    """Type, length and enum checks for one argument. Returns (error or None, value with strings trimmed)."""
+    expected = _TYPES[spec["type"]]
+    if isinstance(value, bool) and spec["type"] != "boolean":   # in Python, True is also an int
+        return f"Argument '{key}' must be {spec['type']}.", value
+    if not isinstance(value, expected):
+        return f"Argument '{key}' must be {spec['type']}, got {type(value).__name__}.", value
+    if spec["type"] == "string":
+        value = value.strip()
+        if len(value) < spec.get("minLength", 0):
+            return f"Argument '{key}' is too short (min {spec['minLength']}).", value
+        if len(value) > spec.get("maxLength", 10**9):
+            return f"Argument '{key}' is too long (max {spec['maxLength']}).", value
+        if "enum" in spec and value not in spec["enum"]:
+            return f"Argument '{key}' must be one of {spec['enum']}.", value
+    return None, value
+
+
 def validate_call(name, arguments):
     """Return (ok, error_message, cleaned_arguments)."""
     if not isinstance(name, str) or name not in ALLOWED:
@@ -61,33 +79,18 @@ def validate_call(name, arguments):
     if not isinstance(arguments, dict):
         return False, "Arguments must be a JSON object.", None
 
-    schema = ALLOWED[name]
-    props, required = schema["properties"], schema["required"]
+    props, required = ALLOWED[name]["properties"], ALLOWED[name]["required"]
     for key in arguments:
         if key not in props:
             return False, f"Unexpected argument '{key}' for {name}.", None
     for key in required:
         if key not in arguments:
             return False, f"Missing required argument '{key}' for {name}.", None
-
-    # type, length and enum checks; strings are trimmed
     cleaned = {}
     for key, value in arguments.items():
-        spec = props[key]
-        expected = _TYPES[spec["type"]]
-        if isinstance(value, bool) and spec["type"] != "boolean":   # in Python, True is also an int
-            return False, f"Argument '{key}' must be {spec['type']}.", None
-        if not isinstance(value, expected):
-            return False, f"Argument '{key}' must be {spec['type']}, got {type(value).__name__}.", None
-        if spec["type"] == "string":
-            value = value.strip()
-            if len(value) < spec.get("minLength", 0):
-                return False, f"Argument '{key}' is too short (min {spec['minLength']}).", None
-            if len(value) > spec.get("maxLength", 10**9):
-                return False, f"Argument '{key}' is too long (max {spec['maxLength']}).", None
-            if "enum" in spec and value not in spec["enum"]:
-                return False, f"Argument '{key}' must be one of {spec['enum']}.", None
-        cleaned[key] = value
+        error, cleaned[key] = _check_value(key, value, props[key])
+        if error:
+            return False, error, None
 
     # extra, function-specific rules
     if name == "analyze_url":

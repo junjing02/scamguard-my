@@ -210,7 +210,7 @@ dl.gloss dt { font-weight: 600; } dl.gloss dd { margin: 0; color: var(--muted); 
 
 <main>
 <header>
-  <div class="eyebrow">scamguard_project · 11 Python files · 1,378 lines</div>
+  <div class="eyebrow">scamguard_project · 11 Python files · 1,391 lines</div>
   <h1>ScamGuard MY Code Tour</h1>
   <p class="lead">This page explains all the code of the agent. First, see which file does what. Then follow one real
   scam message through the code, one step at a time. At the end, each file has its own section with its most important code.</p>
@@ -229,18 +229,18 @@ dl.gloss dt { font-weight: 600; } dl.gloss dd { margin: 0; color: var(--muted); 
     </div>
     <div class="map-arrow">↓</div>
     <div class="map-row">
-      <a class="fcard" href="#f-ui"><span class="path">scamguard/app.py</span><span class="role">The Gradio web page: chat, verdict card, and every function call.</span><span class="meta">381 lines</span></a>
+      <a class="fcard" href="#f-ui"><span class="path">scamguard/app.py</span><span class="role">The Gradio web page: chat, verdict card, and every function call.</span><span class="meta">385 lines</span></a>
     </div>
     <div class="map-arrow">↓ run_turn(session, text)</div>
     <div class="map-row">
-      <a class="fcard core" href="#f-agent"><span class="path">scamguard/agent.py</span><span class="role">The agent loop. Asks the model, checks each tool call, runs it, sends the result back.</span><span class="meta">189 lines</span></a>
+      <a class="fcard core" href="#f-agent"><span class="path">scamguard/agent.py</span><span class="role">The agent loop. Asks the model, checks each tool call, runs it, sends the result back.</span><span class="meta">199 lines</span></a>
     </div>
     <div class="map-arrow">↓ uses</div>
     <div class="map-row">
       <a class="fcard" href="#f-llm"><span class="path">llm.py</span><span class="role">The model (Qwen3.5-4B). Text in, text out.</span><span class="meta">57 lines</span></a>
-      <a class="fcard" href="#f-guardrails"><span class="path">guardrails.py</span><span class="role">Safety rules G1 to G5, in Python.</span><span class="meta">127 lines</span></a>
-      <a class="fcard" href="#f-validation"><span class="path">validation.py</span><span class="role">Tool list for the model, and the allow list check.</span><span class="meta">100 lines</span></a>
-      <a class="fcard" href="#f-tools"><span class="path">tools.py</span><span class="role">The 6 tools that do the real checks.</span><span class="meta">237 lines</span></a>
+      <a class="fcard" href="#f-guardrails"><span class="path">guardrails.py</span><span class="role">Safety rules G1 to G5, in Python.</span><span class="meta">126 lines</span></a>
+      <a class="fcard" href="#f-validation"><span class="path">validation.py</span><span class="role">Tool list for the model, and the allow list check.</span><span class="meta">103 lines</span></a>
+      <a class="fcard" href="#f-tools"><span class="path">tools.py</span><span class="role">The 6 tools that do the real checks.</span><span class="meta">234 lines</span></a>
     </div>
     <div class="map-arrow">↓ reads</div>
     <div class="map-row">
@@ -279,18 +279,18 @@ dl.gloss dt { font-weight: 600; } dl.gloss dd { margin: 0; color: var(--muted); 
       <div class="where"><span class="chip">scamguard/app.py · answer()</span></div>
       <p>The button runs two functions. <code>show_user()</code> shows your message at once and locks the button.
       Then <code>answer()</code> gives the text and your <code>Session</code> to the agent. A new browser tab gets a new, empty Session.</p>
-      <figure class="code"><figcaption><b>scamguard/app.py</b><span>lines 304–315</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">304
-305
-306
-307
-308
+      <figure class="code"><figcaption><b>scamguard/app.py</b><span>lines 308–319</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">308
 309
 310
 311
 312
 313
 314
-315</pre><pre class="src"><code class="language-python">    # step 2: run the agent
+315
+316
+317
+318
+319</pre><pre class="src"><code class="language-python">    # step 2: run the agent
     def answer(text, chat, session):
         session = session or Session()
         done = gr.update(interactive=True, value=&quot;Check&quot;)
@@ -309,12 +309,12 @@ dl.gloss dt { font-weight: 600; } dl.gloss dd { margin: 0; color: var(--muted); 
       <div class="where"><span class="chip">agent.py · run_turn()</span><span class="chip">guardrails.py · check_user_input()</span></div>
       <p>Before the model sees anything, Python looks for forbidden requests (G1: trace a number, contact the scammer, hack back, pay)
       and for prompt injection (G2). This message is a normal check, so nothing is blocked.</p>
-      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 102–107</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">102
+      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 101–106</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">101
+102
 103
 104
 105
-106
-107</pre><pre class="src"><code class="language-python">        # G1/G2 on the raw text
+106</pre><pre class="src"><code class="language-python">        # 1. G1/G2 on the raw text
         verdict = check_user_input(user_text)
         if verdict[&quot;blocked&quot;]:
             session.log(0, &quot;(guardrail)&quot;, {&quot;rule&quot;: verdict[&quot;rule&quot;]}, &quot;blocked&quot;, verdict[&quot;reply&quot;])
@@ -328,7 +328,8 @@ dl.gloss dt { font-weight: 600; } dl.gloss dd { margin: 0; color: var(--muted); 
       <div class="where"><span class="chip">agent.py · run_turn()</span><span class="chip">guardrails.py · redact_pii()</span></div>
       <p>IC numbers, card numbers and OTP/TAC codes are replaced with <code>[REDACTED]</code>. This message has none, so the text stays the same.
       If G2 had found an injection, Python would put a security notice in front of the text here.</p>
-      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 109–121</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">109
+      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 108–123</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">108
+109
 110
 111
 112
@@ -340,10 +341,15 @@ dl.gloss dt { font-weight: 600; } dl.gloss dd { margin: 0; color: var(--muted); 
 118
 119
 120
-121</pre><pre class="src"><code class="language-python">        # G3 PII redaction before the LLM sees anything
+121
+122
+123</pre><pre class="src"><code class="language-python">        # G3 PII redaction before the LLM sees anything
         clean_text, pii = redact_pii(user_text)
+        notes = []
+        pii_warning = None
         if pii:
-            notes.append(&quot;Sensitive data removed before analysis: &quot; + &quot;, &quot;.join(pii) + &quot;. Never share these with anyone.&quot;)
+            pii_warning = &quot;Sensitive data removed before analysis: &quot; + &quot;, &quot;.join(pii) + &quot;. Never share these with anyone.&quot;
+            notes.append(pii_warning)
             session.log(0, &quot;(guardrail)&quot;, {&quot;rule&quot;: &quot;pii_redaction&quot;}, &quot;applied&quot;, &quot;, &quot;.join(pii))
 
         user_content = clean_text
@@ -417,10 +423,19 @@ CIMB Alert: Unusual login detected. ...
 
     <article class="step">
       <div class="step-head"><span class="n">STEP 6</span><h3>Python reads the tool call</h3><span class="who py">Python</span></div>
-      <div class="where"><span class="chip">agent.py · parse_tool_calls()</span></div>
+      <div class="where"><span class="chip">agent.py · parse_tool_calls()</span><span class="chip">_parse_block()</span></div>
       <p>The parser finds each <code>&lt;tool_call&gt;</code> block and turns it into a name and arguments.
       It reads the XML format of Qwen3.5 and the JSON format of Qwen2.5. Broken JSON becomes a <code>parse_error</code>, not a crash.</p>
-      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 59–68</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">59
+      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 50–69</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">50
+51
+52
+53
+54
+55
+56
+57
+58
+59
 60
 61
 62
@@ -429,62 +444,78 @@ CIMB Alert: Unusual login detected. ...
 65
 66
 67
-68</pre><pre class="src"><code class="language-python">    for raw in blocks:
-        fn = _XML_FN.match(raw.strip())
-        if fn:                           # parameter values stay strings; validation checks the types
-            args = {k: v.strip() for k, v in _XML_PARAM.findall(fn.group(2))}
-            calls.append({&quot;name&quot;: fn.group(1), &quot;arguments&quot;: args, &quot;raw&quot;: raw})
-            continue
-        try:
-            calls.append(dict(_as_call(json.loads(raw)), raw=raw))
-        except Exception as e:  # malformed JSON
-            calls.append({&quot;name&quot;: None, &quot;arguments&quot;: None, &quot;raw&quot;: raw, &quot;parse_error&quot;: str(e)})</code></pre></div></figure>
+68
+69</pre><pre class="src"><code class="language-python">def _parse_block(raw):
+    &quot;&quot;&quot;One &lt;tool_call&gt; block -&gt; {&quot;name&quot;, &quot;arguments&quot;, &quot;raw&quot;}, or an entry with &quot;parse_error&quot;.&quot;&quot;&quot;
+    fn = _XML_FN.match(raw.strip())
+    if fn:                               # XML: parameter values stay strings; validation checks the types
+        args = {k: v.strip() for k, v in _XML_PARAM.findall(fn.group(2))}
+        return {&quot;name&quot;: fn.group(1), &quot;arguments&quot;: args, &quot;raw&quot;: raw}
+    try:
+        return dict(_as_call(json.loads(raw)), raw=raw)
+    except Exception as e:               # malformed JSON
+        return {&quot;name&quot;: None, &quot;arguments&quot;: None, &quot;raw&quot;: raw, &quot;parse_error&quot;: str(e)}
+
+
+def parse_tool_calls(text):
+    &quot;&quot;&quot;Parse &lt;tool_call&gt; blocks: Qwen2.5/Hermes JSON or Qwen3.5 XML inside the tag.
+    Falls back to a bare JSON object (JSON-mode). Returns (calls, text without the calls).&quot;&quot;&quot;
+    blocks = _TAG.findall(text)
+    if not blocks:                       # unclosed tag (generation cut off)
+        m = _OPEN_TAG.search(text)
+        blocks = [m.group(1)] if m else []
+    calls = [_parse_block(raw) for raw in blocks]</code></pre></div></figure>
       <div class="value"><div class="label">Value now · calls</div><pre>[{"name": "match_scam_patterns", "arguments": {"text": "CIMB Alert: ..."}}]</pre></div>
     </article>
 
     <article class="step">
       <div class="step-head"><span class="n">STEP 7</span><h3>Validation checks the call</h3><span class="who py">Python</span></div>
-      <div class="where"><span class="chip">agent.py · loop</span><span class="chip">validation.py · validate_call()</span></div>
+      <div class="where"><span class="chip">agent.py · _run_tool()</span><span class="chip">validation.py · validate_call()</span></div>
       <p>The name must be on the allow list. The arguments must have the right names, types and lengths.
       A call that fails is <b>not run</b>: the model gets a <code>rejected</code> result with the reason.</p>
-      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 153–160</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">153
-154
-155
-156
-157
-158
-159
-160</pre><pre class="src"><code class="language-python">            for c in calls:
-                if c.get(&quot;parse_error&quot;):
-                    ok, err, args = False, &quot;Malformed tool call (invalid JSON).&quot;, None
-                else:
-                    ok, err, args = validate_call(c[&quot;name&quot;], c[&quot;arguments&quot;])
-                if not ok:
-                    result = {&quot;status&quot;: &quot;rejected&quot;, &quot;error&quot;: err}
-                    session.log(step, c[&quot;name&quot;], c[&quot;arguments&quot;], &quot;rejected&quot;, result)</code></pre></div></figure>
+      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 169–178</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">169
+170
+171
+172
+173
+174
+175
+176
+177
+178</pre><pre class="src"><code class="language-python">    def _run_tool(self, session, step, call):
+        &quot;&quot;&quot;Validate one tool call, run it only if it is valid, and log it. Returns the result for the LLM.&quot;&quot;&quot;
+        if call.get(&quot;parse_error&quot;):
+            ok, err, args = False, &quot;Malformed tool call (invalid JSON).&quot;, None
+        else:
+            ok, err, args = validate_call(call[&quot;name&quot;], call[&quot;arguments&quot;])
+        if not ok:
+            result = {&quot;status&quot;: &quot;rejected&quot;, &quot;error&quot;: err}
+            session.log(step, call[&quot;name&quot;], call[&quot;arguments&quot;], &quot;rejected&quot;, result)
+            return result</code></pre></div></figure>
       <div class="value"><div class="label">Value now · validate_call(...)</div><pre>(ok = True, err = None, args = {"text": "CIMB Alert: ..."})</pre></div>
     </article>
 
     <article class="step">
       <div class="step-head"><span class="n">STEP 8</span><h3>Python runs the tool and logs it</h3><span class="who py">Python</span></div>
-      <div class="where"><span class="chip">agent.py · loop</span><span class="chip">tools.py · TOOL_FUNCS</span></div>
+      <div class="where"><span class="chip">agent.py · _run_tool()</span><span class="chip">_tool_loop()</span><span class="chip">tools.py · TOOL_FUNCS</span></div>
       <p><code>TOOL_FUNCS</code> maps the name to the real Python function. The call goes into the call log (the interface shows it),
       and the result goes back to the model as a <code>tool</code> message. If the function crashes, the error is reported, not hidden.</p>
-      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 161–169</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">161
-162
+      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 179–184</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">179
+180
+181
+182
+183
+184</pre><pre class="src"><code class="language-python">        try:
+            result = TOOL_FUNCS[call[&quot;name&quot;]](session, **args)
+        except Exception as e:                   # a failing function must be reported, not hidden
+            result = {&quot;status&quot;: &quot;error&quot;, &quot;error&quot;: f&quot;{type(e).__name__}: {e}&quot;}
+        session.log(step, call[&quot;name&quot;], args, &quot;error&quot; if result.get(&quot;status&quot;) == &quot;error&quot; else &quot;ok&quot;, result)
+        return result</code></pre></div></figure>
+      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 162–165</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">162
 163
 164
-165
-166
-167
-168
-169</pre><pre class="src"><code class="language-python">                else:
-                    try:
-                        result = TOOL_FUNCS[c[&quot;name&quot;]](session, **args)
-                        session.log(step, c[&quot;name&quot;], args, &quot;ok&quot; if result.get(&quot;status&quot;) != &quot;error&quot; else &quot;error&quot;, result)
-                    except Exception as e:       # a failing function must be reported, not hidden
-                        result = {&quot;status&quot;: &quot;error&quot;, &quot;error&quot;: f&quot;{type(e).__name__}: {e}&quot;}
-                        session.log(step, c[&quot;name&quot;], args, &quot;error&quot;, result)
+165</pre><pre class="src"><code class="language-python">            for c in calls:
+                result = self._run_tool(session, step, c)
                 messages.append({&quot;role&quot;: &quot;tool&quot;, &quot;name&quot;: c[&quot;name&quot;] or &quot;invalid&quot;,
                                  &quot;content&quot;: json.dumps(result, ensure_ascii=False)})</code></pre></div></figure>
     </article>
@@ -494,10 +525,7 @@ CIMB Alert: Unusual login detected. ...
       <div class="where"><span class="chip">tools.py · match_scam_patterns()</span><span class="chip">data/scam_patterns.json</span></div>
       <p>The tool compares the text with 19 patterns. Each pattern has keywords and a weight. A keyword must match as whole words.
       It also lists the links in the text, so the model knows what to check next.</p>
-      <figure class="code"><figcaption><b>scamguard/tools.py</b><span>lines 70–85</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">70
-71
-72
-73
+      <figure class="code"><figcaption><b>scamguard/tools.py</b><span>lines 73–87</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">73
 74
 75
 76
@@ -509,17 +537,18 @@ CIMB Alert: Unusual login detected. ...
 82
 83
 84
-85</pre><pre class="src"><code class="language-python">    for p in PATTERNS:
-        hits = [kw for kw in p[&quot;keywords&quot;]
-                if re.search(r&quot;(?&lt;!\w)&quot; + re.escape(kw.lower()) + r&quot;(?!\w)&quot;, low)]
-        if hits:
-            matched.append({&quot;id&quot;: p[&quot;id&quot;], &quot;name&quot;: p[&quot;name&quot;], &quot;matched_keywords&quot;: hits,
-                            &quot;weight&quot;: p[&quot;weight&quot;], &quot;explanation&quot;: p[&quot;explanation&quot;]})
-    for m in matched:
-        if m[&quot;id&quot;] not in ev[&quot;pattern_ids&quot;]:
-            ev[&quot;pattern_ids&quot;].append(m[&quot;id&quot;])
-            ev[&quot;pattern_score&quot;] += m[&quot;weight&quot;]
-            ev[&quot;reasons&quot;].append(f&quot;Pattern: {m[&#x27;name&#x27;]} ({&#x27;, &#x27;.join(m[&#x27;matched_keywords&#x27;][:3])})&quot;)
+85
+86
+87</pre><pre class="src"><code class="language-python">    for p in PATTERNS:
+        hits = [kw for kw in p[&quot;keywords&quot;] if _word_in(kw.lower(), low)]
+        if not hits:
+            continue
+        matched.append({&quot;id&quot;: p[&quot;id&quot;], &quot;name&quot;: p[&quot;name&quot;], &quot;matched_keywords&quot;: hits,
+                        &quot;weight&quot;: p[&quot;weight&quot;], &quot;explanation&quot;: p[&quot;explanation&quot;]})
+        if p[&quot;id&quot;] not in ev[&quot;pattern_ids&quot;]:     # a repeated call must not count a pattern twice
+            ev[&quot;pattern_ids&quot;].append(p[&quot;id&quot;])
+            ev[&quot;pattern_score&quot;] += p[&quot;weight&quot;]
+            ev[&quot;reasons&quot;].append(f&quot;Pattern: {p[&#x27;name&#x27;]} ({&#x27;, &#x27;.join(hits[:3])})&quot;)
     note = (&quot;No known scam pattern matched. This does NOT mean the message is safe: my pattern list is small.&quot;
             if not matched else &quot;Matched patterns are signals, not proof.&quot;)
     return {&quot;status&quot;: &quot;ok&quot;, &quot;matches&quot;: matched,
@@ -537,9 +566,7 @@ CIMB Alert: Unusual login detected. ...
       <div class="where"><span class="chip">tools.py · analyze_url()</span><span class="chip">data/official_orgs.json</span><span class="chip">data/url_flags.json</span></div>
       <p>The loop starts again (steps 5 to 8). The model reads the result and asks for <code>analyze_url</code>.
       The tool reads the address as text and never opens it. "cimb" is in the name, but the domain is not CIMB's official domain, so it is a look-alike.</p>
-      <figure class="code"><figcaption><b>scamguard/tools.py</b><span>lines 113–127</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">113
-114
-115
+      <figure class="code"><figcaption><b>scamguard/tools.py</b><span>lines 115–130</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">115
 116
 117
 118
@@ -551,11 +578,15 @@ CIMB Alert: Unusual login detected. ...
 124
 125
 126
-127</pre><pre class="src"><code class="language-python">    if host.split(&quot;.&quot;)[-1] in URL_FLAGS[&quot;suspicious_tlds&quot;]:
-        add(&quot;suspicious_tld&quot;, 2, f&quot;.{host.split(&#x27;.&#x27;)[-1]} is a TLD commonly abused in scams.&quot;)
+127
+128
+129
+130</pre><pre class="src"><code class="language-python">    tld = host.split(&quot;.&quot;)[-1]
+    if tld in URL_FLAGS[&quot;suspicious_tlds&quot;]:
+        add(&quot;suspicious_tld&quot;, 2, f&quot;.{tld} is a TLD commonly abused in scams.&quot;)
     if &quot;xn--&quot; in host:
         add(&quot;punycode&quot;, 3, &quot;Internationalised (look-alike character) domain.&quot;)
-    if &quot;@&quot; in raw.split(&quot;//&quot;)[-1].split(&quot;/&quot;)[0]:
+    if &quot;@&quot; in raw.split(&quot;//&quot;)[-1].split(&quot;/&quot;)[0]:   # an &quot;@&quot; before the first &quot;/&quot;
         add(&quot;at_symbol&quot;, 3, &quot;&#x27;@&#x27; in the address can disguise the real destination.&quot;)
     if not official:                     # a brand name on a domain that is NOT official: a look-alike
         for org in ORGS:
@@ -580,7 +611,9 @@ CIMB Alert: Unusual login detected. ...
       <div class="where"><span class="chip">tools.py · calculate_risk_score()</span></div>
       <p>The model asks for the score. Python adds the evidence and picks the level with fixed limits.
       There is no "safe" level. The result is saved in <code>session.last_risk</code>, and the interface reads it from there.</p>
-      <figure class="code"><figcaption><b>scamguard/tools.py</b><span>lines 199–215</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">199
+      <figure class="code"><figcaption><b>scamguard/tools.py</b><span>lines 197–212</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">197
+198
+199
 200
 201
 202
@@ -593,24 +626,20 @@ CIMB Alert: Unusual login detected. ...
 209
 210
 211
-212
-213
-214
-215</pre><pre class="src"><code class="language-python">    ev = session.evidence
+212</pre><pre class="src"><code class="language-python">    ev = session.evidence
     total = ev[&quot;pattern_score&quot;] + ev[&quot;url_score&quot;]
     if total &gt;= 8:
         level = &quot;High&quot;
     elif total &gt;= 4:
         level = &quot;Medium&quot;
-    elif total &gt;= 1:
-        level = &quot;Low&quot;
-    elif ev[&quot;official_match&quot;]:
+    elif total &gt;= 1 or ev[&quot;official_match&quot;]:
         level = &quot;Low&quot;
     else:
         level = &quot;Can&#x27;t tell&quot;
-    caveat = (&quot;Heuristic score from a small rule set. It is never a guarantee, and I cannot see the sender or the live website.&quot;)
     if level == &quot;Can&#x27;t tell&quot;:
         caveat = &quot;I found no signals either way (or no checks were run), so I cannot judge this message.&quot;
+    else:
+        caveat = &quot;Heuristic score from a small rule set. It is never a guarantee, and I cannot see the sender or the live website.&quot;
     session.last_risk = {&quot;level&quot;: level, &quot;score&quot;: total, &quot;reasons&quot;: list(ev[&quot;reasons&quot;])}
     return {&quot;status&quot;: &quot;ok&quot;, &quot;level&quot;: level, &quot;score&quot;: total, &quot;reasons&quot;: list(ev[&quot;reasons&quot;]), &quot;caveat&quot;: caveat}</code></pre></div></figure>
       <div class="value"><div class="label">Value now · session.last_risk</div><div class="score">
@@ -621,21 +650,20 @@ CIMB Alert: Unusual login detected. ...
 
     <article class="step" data-stage="After the loop">
       <div class="step-head"><span class="n">STEP 12</span><h3>Loop step 4: the model answers, G5 checks the steps</h3><span class="who llm">model</span><span class="who py">Python</span></div>
-      <div class="where"><span class="chip">agent.py · loop</span><span class="chip">guardrails.py · procedure_gap()</span></div>
+      <div class="where"><span class="chip">agent.py · _tool_loop()</span><span class="chip">guardrails.py · procedure_gap()</span></div>
       <p>Now the model writes text with no tool call. Before Python accepts it, G5 checks the call log: patterns checked, every link checked,
       risk calculated. All steps are done, so there is no reminder and the loop stops.</p>
-      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 135–146</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">135
-136
-137
-138
-139
-140
-141
-142
-143
-144
-145
-146</pre><pre class="src"><code class="language-python">            calls, text = parse_tool_calls(raw)
+      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 145–155</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155</pre><pre class="src"><code class="language-python">            calls, text = parse_tool_calls(raw)
             if not calls:                        # no tool call: the model wants to give its final answer
                 # G5: one reminder if the model answers before finishing the steps; the model still decides
                 gap = None if reminded else procedure_gap(session.call_log[start:])
@@ -645,49 +673,44 @@ CIMB Alert: Unusual login detected. ...
                     messages += [{&quot;role&quot;: &quot;assistant&quot;, &quot;content&quot;: text},
                                  {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: f&quot;[PROCEDURE CHECK from the system: {gap}]&quot;}]
                     continue
-                final_text = text or &quot;I could not produce an answer. Please rephrase your message.&quot;
-                break</code></pre></div></figure>
+                return text or &quot;I could not produce an answer. Please rephrase your message.&quot;</code></pre></div></figure>
       <div class="value"><div class="label">Value now</div><pre>procedure_gap(calls) = None        # nothing is missing
-final_text = "High risk: phishing. It uses urgency, it names CIMB, and the link is not an
-              official CIMB domain (.top). Do not click it ..."   # short form of the real reply</pre></div>
+reply = "High risk: phishing. It uses urgency, it names CIMB, and the link is not an
+         official CIMB domain (.top). Do not click it ..."   # short form of the real reply</pre></div>
     </article>
 
     <article class="step">
       <div class="step-head"><span class="n">STEP 13</span><h3>G4 checks the reply, Python adds the level</h3><span class="who py">Python</span></div>
-      <div class="where"><span class="chip">agent.py · run_turn()</span><span class="chip">guardrails.py · check_output()</span></div>
+      <div class="where"><span class="chip">agent.py · _finish_reply()</span><span class="chip">guardrails.py · check_output()</span></div>
       <p>G4 rewrites a reply that calls something "safe", or says that a report was "submitted". This reply has neither.
       Then Python adds the risk line. So the level in the reply always comes from the tools, not from the model.</p>
-      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 174–189</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">174
-175
-176
-177
-178
-179
-180
-181
-182
-183
-184
-185
-186
+      <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 186–199</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">186
 187
 188
-189</pre><pre class="src"><code class="language-python">        # G4 output guardrail + verdict computed by Python, not by the LLM
-        final_text, triggered = check_output(final_text, session.last_risk)
+189
+190
+191
+192
+193
+194
+195
+196
+197
+198
+199</pre><pre class="src"><code class="language-python">    def _finish_reply(self, session, reply, notes, pii_warning):
+        &quot;&quot;&quot;G4 checks the reply, then Python adds the risk level from the tools, the report notice and the PII warning.&quot;&quot;&quot;
+        reply, triggered = check_output(reply, session.last_risk)
         for t in triggered:
             session.log(0, &quot;(guardrail)&quot;, {&quot;rule&quot;: t}, &quot;applied&quot;, &quot;Reply rewritten by Python guardrail.&quot;)
             notes.append(f&quot;Output guardrail: {t}&quot;)
         if session.last_risk:
             r = session.last_risk
-            final_text += f&quot;\n\n**Risk level (computed by the tools): {r[&#x27;level&#x27;].upper()}** (score {r[&#x27;score&#x27;]}). This is a heuristic, not a guarantee.&quot;
+            reply += f&quot;\n\n**Risk level (computed by the tools): {r[&#x27;level&#x27;].upper()}** (score {r[&#x27;score&#x27;]}). This is a heuristic, not a guarantee.&quot;
         if session.pending_report:
-            final_text += &quot;\n\nA report draft is ready. It has NOT been submitted: use the Confirm or Cancel button.&quot;
-        for n in notes:                          # repeat the &quot;never share these&quot; warning in the reply
-            if n.startswith(&quot;Sensitive&quot;):
-                final_text += &quot;\n\n&quot; + n
-
-        session.history.append((clean_text, final_text))
-        return {&quot;reply&quot;: final_text, &quot;calls&quot;: session.call_log[start:], &quot;notes&quot;: notes}</code></pre></div></figure>
+            reply += &quot;\n\nA report draft is ready. It has NOT been submitted: use the Confirm or Cancel button.&quot;
+        if pii_warning:                          # repeat the &quot;never share these&quot; warning in the reply
+            reply += &quot;\n\n&quot; + pii_warning
+        return reply</code></pre></div></figure>
       <div class="value"><div class="label">Value now · end of the reply</div><pre>**Risk level (computed by the tools): HIGH** (score 11). This is a heuristic, not a guarantee.</pre></div>
     </article>
 
@@ -759,7 +782,7 @@ final_text = "High risk: phishing. It uses urgency, it names CIMB, and the link 
       <p class="ex">Macau scam: no score → reminder → calculate_risk_score → HIGH (9)</p></div>
     <div class="path-card"><span class="pill grey">LIMITS</span><h3>Model error or too many steps</h3>
       <p>If the model fails, the reply says it is unavailable. After 6 loop steps, the reply says the check is incomplete. Nothing is invented.</p>
-      <p class="ex">max_steps = 6 · the for … else branch in run_turn()</p></div>
+      <p class="ex">max_steps = 6 · the last line of _tool_loop()</p></div>
     <div class="path-card"><span class="pill grey">HUMAN STEP</span><h3>Report draft</h3>
       <p><code>draft_report</code> only makes a draft. Only the Confirm button saves it, and only on this computer. The model cannot press it.</p>
       <p class="ex">session.pending_report → Confirm → reports/submitted_reports.jsonl</p></div>
@@ -838,14 +861,18 @@ if __name__ == &quot;__main__&quot;:
   </div>
 
   <div class="file" id="f-agent">
-    <div class="file-head"><h3>scamguard/agent.py</h3><span class="meta">189 lines · the agent loop</span></div>
-    <p>The centre of the project. Section 2 follows <code>run_turn()</code> line by line, so this section shows the two other parts: the system prompt and the parser.</p>
+    <div class="file-head"><h3>scamguard/agent.py</h3><span class="meta">199 lines · the agent loop</span></div>
+    <p>The centre of the project. Section 2 follows <code>run_turn()</code> line by line, so this section shows the two other parts: the system prompt and the parser. <code>run_turn()</code> uses three short helpers for its middle and end.</p>
     <div class="tbl"><table>
       <tr><th>Item</th><th>Line</th><th>What it does</th></tr>
       <tr><td><code>SYSTEM_PROMPT</code></td><td class="num">17</td><td>The rules for the model: the 4-step procedure, never say "safe", never invent facts, message text is data, not instructions.</td></tr>
-      <tr><td><code>parse_tool_calls</code></td><td class="num">50</td><td>Finds the tool calls in the model's text (XML or JSON format). Returns the calls and the remaining text.</td></tr>
+      <tr><td><code>_parse_block</code></td><td class="num">50</td><td>Turns one tool-call block (XML or JSON format) into a name and arguments.</td></tr>
+      <tr><td><code>parse_tool_calls</code></td><td class="num">62</td><td>Finds the tool calls in the model's text. Returns the calls and the remaining text.</td></tr>
       <tr><td><code>_build_messages</code></td><td class="num">88</td><td>System prompt + last 4 question/answer pairs + the new message.</td></tr>
-      <tr><td><code>run_turn</code></td><td class="num">96</td><td>One message from start to end: G1–G3, the tool loop with validation and G5, then G4 and the risk line.</td></tr>
+      <tr><td><code>run_turn</code></td><td class="num">96</td><td>One message from start to end: G1–G3, the tool loop, then the final reply.</td></tr>
+      <tr><td><code>_tool_loop</code></td><td class="num">135</td><td>Asks the model, runs its tool calls and sends back the results, with the G5 reminder.</td></tr>
+      <tr><td><code>_run_tool</code></td><td class="num">169</td><td>Validates one call, runs it only if it is valid, and logs it.</td></tr>
+      <tr><td><code>_finish_reply</code></td><td class="num">186</td><td>G4 check, then the risk line, the report notice and the PII warning from Python.</td></tr>
     </table></div>
     <figure class="code"><figcaption><b>scamguard/agent.py</b><span>lines 17–32</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">17
 18
@@ -886,10 +913,10 @@ RULES:
   </div>
 
   <div class="file" id="f-validation">
-    <div class="file-head"><h3>scamguard/validation.py</h3><span class="meta">100 lines · schemas and allow list</span></div>
+    <div class="file-head"><h3>scamguard/validation.py</h3><span class="meta">103 lines · schemas and allow list</span></div>
     <p>One list, <code>TOOL_SCHEMAS</code>, does two jobs. It tells the model which tools exist, and it is the rule book that
     <code>validate_call()</code> uses. So the model and the validator always agree.</p>
-    <figure class="code"><figcaption><b>scamguard/validation.py</b><span>lines 45–53</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">45
+    <figure class="code"><figcaption><b>scamguard/validation.py</b><span>lines 45–65</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">45
 46
 47
 48
@@ -897,20 +924,40 @@ RULES:
 50
 51
 52
-53</pre><pre class="src"><code class="language-python"># the allow list: function name -&gt; its parameter rules
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65</pre><pre class="src"><code class="language-python"># the allow list: function name -&gt; its parameter rules
 ALLOWED = {s[&quot;function&quot;][&quot;name&quot;]: s[&quot;function&quot;][&quot;parameters&quot;] for s in TOOL_SCHEMAS}
 _TYPES = {&quot;string&quot;: str, &quot;integer&quot;: int, &quot;number&quot;: (int, float), &quot;boolean&quot;: bool}
 
 
-def validate_call(name, arguments):
-    &quot;&quot;&quot;Return (ok, error_message, cleaned_arguments).&quot;&quot;&quot;
-    if not isinstance(name, str) or name not in ALLOWED:
-        return False, f&quot;Function &#x27;{name}&#x27; is not on the allow list. Allowed: {sorted(ALLOWED)}&quot;, None</code></pre></div></figure>
-    <figure class="code"><figcaption><b>scamguard/validation.py</b><span>lines 64–90</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">64
-65
-66
-67
-68
+def _check_value(key, value, spec):
+    &quot;&quot;&quot;Type, length and enum checks for one argument. Returns (error or None, value with strings trimmed).&quot;&quot;&quot;
+    expected = _TYPES[spec[&quot;type&quot;]]
+    if isinstance(value, bool) and spec[&quot;type&quot;] != &quot;boolean&quot;:   # in Python, True is also an int
+        return f&quot;Argument &#x27;{key}&#x27; must be {spec[&#x27;type&#x27;]}.&quot;, value
+    if not isinstance(value, expected):
+        return f&quot;Argument &#x27;{key}&#x27; must be {spec[&#x27;type&#x27;]}, got {type(value).__name__}.&quot;, value
+    if spec[&quot;type&quot;] == &quot;string&quot;:
+        value = value.strip()
+        if len(value) &lt; spec.get(&quot;minLength&quot;, 0):
+            return f&quot;Argument &#x27;{key}&#x27; is too short (min {spec[&#x27;minLength&#x27;]}).&quot;, value
+        if len(value) &gt; spec.get(&quot;maxLength&quot;, 10**9):
+            return f&quot;Argument &#x27;{key}&#x27; is too long (max {spec[&#x27;maxLength&#x27;]}).&quot;, value
+        if &quot;enum&quot; in spec and value not in spec[&quot;enum&quot;]:
+            return f&quot;Argument &#x27;{key}&#x27; must be one of {spec[&#x27;enum&#x27;]}.&quot;, value
+    return None, value</code></pre></div></figure>
+    <figure class="code"><figcaption><b>scamguard/validation.py</b><span>lines 68–93</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">68
 69
 70
 71
@@ -932,44 +979,47 @@ def validate_call(name, arguments):
 87
 88
 89
-90</pre><pre class="src"><code class="language-python">    schema = ALLOWED[name]
-    props, required = schema[&quot;properties&quot;], schema[&quot;required&quot;]
+90
+91
+92
+93</pre><pre class="src"><code class="language-python">def validate_call(name, arguments):
+    &quot;&quot;&quot;Return (ok, error_message, cleaned_arguments).&quot;&quot;&quot;
+    if not isinstance(name, str) or name not in ALLOWED:
+        return False, f&quot;Function &#x27;{name}&#x27; is not on the allow list. Allowed: {sorted(ALLOWED)}&quot;, None
+    if isinstance(arguments, str):           # some models send the arguments as a JSON string
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError:
+            return False, &quot;Arguments are not valid JSON.&quot;, None
+    if arguments is None:
+        arguments = {}
+    if not isinstance(arguments, dict):
+        return False, &quot;Arguments must be a JSON object.&quot;, None
+
+    props, required = ALLOWED[name][&quot;properties&quot;], ALLOWED[name][&quot;required&quot;]
     for key in arguments:
         if key not in props:
             return False, f&quot;Unexpected argument &#x27;{key}&#x27; for {name}.&quot;, None
     for key in required:
         if key not in arguments:
             return False, f&quot;Missing required argument &#x27;{key}&#x27; for {name}.&quot;, None
-
-    # type, length and enum checks; strings are trimmed
     cleaned = {}
     for key, value in arguments.items():
-        spec = props[key]
-        expected = _TYPES[spec[&quot;type&quot;]]
-        if isinstance(value, bool) and spec[&quot;type&quot;] != &quot;boolean&quot;:   # in Python, True is also an int
-            return False, f&quot;Argument &#x27;{key}&#x27; must be {spec[&#x27;type&#x27;]}.&quot;, None
-        if not isinstance(value, expected):
-            return False, f&quot;Argument &#x27;{key}&#x27; must be {spec[&#x27;type&#x27;]}, got {type(value).__name__}.&quot;, None
-        if spec[&quot;type&quot;] == &quot;string&quot;:
-            value = value.strip()
-            if len(value) &lt; spec.get(&quot;minLength&quot;, 0):
-                return False, f&quot;Argument &#x27;{key}&#x27; is too short (min {spec[&#x27;minLength&#x27;]}).&quot;, None
-            if len(value) &gt; spec.get(&quot;maxLength&quot;, 10**9):
-                return False, f&quot;Argument &#x27;{key}&#x27; is too long (max {spec[&#x27;maxLength&#x27;]}).&quot;, None
-            if &quot;enum&quot; in spec and value not in spec[&quot;enum&quot;]:
-                return False, f&quot;Argument &#x27;{key}&#x27; must be one of {spec[&#x27;enum&#x27;]}.&quot;, None
-        cleaned[key] = value</code></pre></div></figure>
+        error, cleaned[key] = _check_value(key, value, props[key])
+        if error:
+            return False, error, None</code></pre></div></figure>
     <ol class="notes">
       <li><span class="at">L46</span><span><code>ALLOWED</code> is the allow list: only these 6 names can run.</span></li>
-      <li><span class="at">L66–71</span><span>Unknown arguments and missing required arguments are rejected.</span></li>
-      <li><span class="at">L78</span><span>In Python, <code>True</code> is also an integer, so a boolean is checked first.</span></li>
-      <li><span class="at">L82–89</span><span>Strings are trimmed, then checked for their minimum and maximum length and for the allowed values (enum).</span></li>
+      <li><span class="at">L53</span><span>In Python, <code>True</code> is also an integer, so a boolean is checked first.</span></li>
+      <li><span class="at">L57–64</span><span>Strings are trimmed, then checked for their minimum and maximum length and for the allowed values (enum).</span></li>
+      <li><span class="at">L83–88</span><span>Unknown arguments and missing required arguments are rejected.</span></li>
+      <li><span class="at">L90–93</span><span>Each argument goes through <code>_check_value</code>. The first error rejects the call.</span></li>
     </ol>
     <p>After the general checks, <code>analyze_url</code> has extra rules: no spaces, and only <code>http</code>/<code>https</code> or a bare domain. A <code>file://</code> or <code>javascript:</code> address is rejected.</p>
   </div>
 
   <div class="file" id="f-guardrails">
-    <div class="file-head"><h3>scamguard/guardrails.py</h3><span class="meta">127 lines · safety rules in Python</span></div>
+    <div class="file-head"><h3>scamguard/guardrails.py</h3><span class="meta">126 lines · safety rules in Python</span></div>
     <p>The model can make mistakes, so the most important rules are in Python. They run every time, whatever the model writes.</p>
     <div class="tbl"><table>
       <tr><th>Rule</th><th>Function</th><th>When</th><th>What it does</th></tr>
@@ -980,7 +1030,9 @@ def validate_call(name, arguments):
       <tr><td><b>G5</b></td><td><code>procedure_gap</code></td><td>Before the final answer</td><td>Finds a missing step and sends one reminder.</td></tr>
     </table></div>
     <p>G1 must not block a pasted scam message. "Pay RM1.50 fee" is text to check, not a request to the agent. So the rules look for requests <i>to the agent</i>, for example "transfer … for me".</p>
-    <figure class="code"><figcaption><b>scamguard/guardrails.py</b><span>lines 108–127</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">108
+    <figure class="code"><figcaption><b>scamguard/guardrails.py</b><span>lines 106–126</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">106
+107
+108
 109
 110
 111
@@ -998,9 +1050,8 @@ def validate_call(name, arguments):
 123
 124
 125
-126
-127</pre><pre class="src"><code class="language-python"># ---------- G5: procedure check ----------
-def procedure_gap(calls: list) -&gt; str | None:
+126</pre><pre class="src"><code class="language-python"># ---------- G5: procedure check ----------
+def procedure_gap(calls):
     &quot;&quot;&quot;Return a reminder if the model tries to answer before it used the dataset tools and finished the
     procedure, else None. `calls` = this message&#x27;s call log: the record of which steps are done.&quot;&quot;&quot;
     done = [c for c in calls if c[&quot;status&quot;] == &quot;ok&quot;]
@@ -1012,7 +1063,8 @@ def procedure_gap(calls: list) -&gt; str | None:
                 &quot;get_official_contact for an organisation. Only if the question is not about scams at all, &quot;
                 &quot;say that you can only answer from your scam dataset.&quot;)
     if &quot;match_scam_patterns&quot; in names:
-        urls = next(c[&quot;result&quot;][&quot;urls_found&quot;] for c in reversed(done) if c[&quot;function&quot;] == &quot;match_scam_patterns&quot;)
+        last_check = [c for c in done if c[&quot;function&quot;] == &quot;match_scam_patterns&quot;][-1]
+        urls = last_check[&quot;result&quot;][&quot;urls_found&quot;]
         if names.count(&quot;analyze_url&quot;) &lt; len(urls):
             return (f&quot;You found these links but did not check them all: {urls}. &quot;
                     &quot;Call analyze_url for each one, then calculate_risk_score.&quot;)
@@ -1020,14 +1072,14 @@ def procedure_gap(calls: list) -&gt; str | None:
             return &quot;You checked the patterns but did not calculate the risk. Call calculate_risk_score before you answer.&quot;
     return None</code></pre></div></figure>
     <ol class="notes">
-      <li><span class="at">L112–113</span><span>Only successful calls count. A rejected call is not a finished step.</span></li>
-      <li><span class="at">L114–119</span><span>No tool at all: the model answered from its own knowledge. The reminder lists which tool fits which question.</span></li>
-      <li><span class="at">L120–126</span><span>The number of <code>analyze_url</code> calls must be at least the number of links found, and the risk score must be calculated.</span></li>
+      <li><span class="at">L110–111</span><span>Only successful calls count. A rejected call is not a finished step.</span></li>
+      <li><span class="at">L112–117</span><span>No tool at all: the model answered from its own knowledge. The reminder lists which tool fits which question.</span></li>
+      <li><span class="at">L118–125</span><span>The number of <code>analyze_url</code> calls must be at least the number of links found, and the risk score must be calculated.</span></li>
     </ol>
   </div>
 
   <div class="file" id="f-tools">
-    <div class="file-head"><h3>scamguard/tools.py</h3><span class="meta">237 lines · the 6 tools</span></div>
+    <div class="file-head"><h3>scamguard/tools.py</h3><span class="meta">234 lines · the 6 tools</span></div>
     <p>Plain Python over the JSON dataset. No tool uses the network. Each tool gets the <code>session</code> first, so the check tools can add to the evidence.</p>
     <div class="tbl"><table>
       <tr><th>#</th><th>Tool</th><th>Arguments</th><th>Returns</th></tr>
@@ -1050,9 +1102,7 @@ def procedure_gap(calls: list) -&gt; str | None:
     <p>Score limits in <code>calculate_risk_score</code>:
       <span class="pill high">HIGH 8+</span> <span class="pill med">MEDIUM 4–7</span> <span class="pill low">LOW 1–3</span>
       <span class="pill low">LOW 0 + official domain</span> <span class="pill grey">CAN'T TELL 0</span></p>
-    <figure class="code"><figcaption><b>scamguard/tools.py</b><span>lines 88–101</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">88
-89
-90
+    <figure class="code"><figcaption><b>scamguard/tools.py</b><span>lines 90–103</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">90
 91
 92
 93
@@ -1063,7 +1113,9 @@ def procedure_gap(calls: list) -&gt; str | None:
 98
 99
 100
-101</pre><pre class="src"><code class="language-python">def analyze_url(session, url):
+101
+102
+103</pre><pre class="src"><code class="language-python">def analyze_url(session, url):
     &quot;&quot;&quot;Tool 2: check one URL as text. Official domains give no points; each warning sign adds its weight.&quot;&quot;&quot;
     raw = url.strip()
     parsed = urlparse(raw if &quot;://&quot; in raw else &quot;//&quot; + raw)
@@ -1078,8 +1130,8 @@ def procedure_gap(calls: list) -&gt; str | None:
     def add(flag, weight, why):
         flags.append({&quot;flag&quot;: flag, &quot;weight&quot;: weight, &quot;why&quot;: why})</code></pre></div></figure>
     <ol class="notes">
-      <li><span class="at">L91</span><span><code>urlparse</code> only splits the text into parts. Nothing is downloaded.</span></li>
-      <li><span class="at">L97</span><span><code>_registered_domain</code> finds the part that the owner registered, so <code>maybank2u.com.my.evil.xyz</code> is not taken as Maybank.</span></li>
+      <li><span class="at">L93</span><span><code>urlparse</code> only splits the text into parts. Nothing is downloaded.</span></li>
+      <li><span class="at">L99</span><span><code>_registered_domain</code> finds the part that the owner registered, so <code>maybank2u.com.my.evil.xyz</code> is not taken as Maybank.</span></li>
     </ol>
   </div>
 
@@ -1136,7 +1188,7 @@ def procedure_gap(calls: list) -&gt; str | None:
   </div>
 
   <div class="file" id="f-ui">
-    <div class="file-head"><h3>scamguard/app.py</h3><span class="meta">381 lines · the Gradio interface</span></div>
+    <div class="file-head"><h3>scamguard/app.py</h3><span class="meta">385 lines · the Gradio interface</span></div>
     <p>The web page. The top part of the file is data and small helpers that turn results into readable text. <code>build_ui()</code> makes the page and connects the buttons.</p>
     <div class="tbl"><table>
       <tr><th>Item</th><th>What it does</th></tr>
@@ -1148,16 +1200,16 @@ def procedure_gap(calls: list) -&gt; str | None:
       <tr><td><code>show_user</code> → <code>answer</code></td><td>Two steps: show the message and lock the button, then run the agent.</td></tr>
       <tr><td><code>on_report</code>, <code>on_clear</code></td><td>The Confirm/Cancel buttons, and Clear all (a new Session).</td></tr>
     </table></div>
-    <figure class="code"><figcaption><b>scamguard/app.py</b><span>lines 371–380</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">371
-372
-373
-374
-375
+    <figure class="code"><figcaption><b>scamguard/app.py</b><span>lines 375–384</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">375
 376
 377
 378
 379
-380</pre><pre class="src"><code class="language-python">        # events
+380
+381
+382
+383
+384</pre><pre class="src"><code class="language-python">        # events
         case.change(pick_case, case, [box, expected])
         outs = [chat, verdict, steps, toolbox, report_md, report_box, last, log, session, send]
         for trigger in (send.click, box.submit):
@@ -1168,8 +1220,8 @@ def procedure_gap(calls: list) -&gt; str | None:
         cancel.click(lambda c, s: on_report(c, s, False), [chat, session], report_outs)
         clear.click(on_clear, None, outs + [case, expected, box])</code></pre></div></figure>
     <ol class="notes">
-      <li><span class="at">L374–376</span><span>The Check button and the Enter key do the same thing. <code>.then()</code> runs <code>answer</code> after <code>show_user</code> has updated the page.</span></li>
-      <li><span class="at">L378–379</span><span>The only code path that confirms or cancels a report.</span></li>
+      <li><span class="at">L378–380</span><span>The Check button and the Enter key do the same thing. <code>.then()</code> runs <code>answer</code> after <code>show_user</code> has updated the page.</span></li>
+      <li><span class="at">L382–383</span><span>The only code path that confirms or cancels a report.</span></li>
     </ol>
   </div>
 
