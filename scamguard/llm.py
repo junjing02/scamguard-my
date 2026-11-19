@@ -26,11 +26,12 @@ class HFChatModel:
                       else "cpu")
         self.device = device
         dtype = torch.float32 if device == "cpu" else torch.float16
-        kwargs = {"device_map": "auto"} if self.device == "cuda" else {}
+        kwargs = {}
         if load_in_4bit:                                   # bitsandbytes: NVIDIA GPU only
             from transformers import BitsAndBytesConfig
             kwargs["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16, bnb_4bit_quant_type="nf4")
+            kwargs["device_map"] = "auto"                  # a 4-bit model is placed while it loads
         else:
             kwargs["dtype"] = dtype                        # fp16 on a GPU, fp32 on a CPU
         try:
@@ -38,7 +39,7 @@ class HFChatModel:
         except ValueError:                                 # multimodal models such as Qwen3.5 (text use only)
             from transformers import AutoModelForImageTextToText
             self.model = AutoModelForImageTextToText.from_pretrained(model_id, **kwargs)
-        if self.device != "cuda":
+        if not load_in_4bit:                               # also works on a ZeroGPU Space (emulated CUDA)
             self.model.to(self.device)
         self.model.eval()
         self.model_id = model_id
