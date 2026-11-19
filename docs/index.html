@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="How the ScamGuard MY scam-checking agent works: tools, guardrails, risk score and memory.">
+<style>body { margin: 0; } img { max-width: 100%; } [hidden] { display: none !important; }</style>
+<title>How ScamGuard MY Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column; diagrams sit in framed figures that scroll sideways on phones. */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --fg: #17212b; --muted: #5b6875; --line: #d9dfe5; --line-strong: #9aa6b2;
+  --guard: #0d7068; --guard-soft: #e2f1ef;          /* Python checks */
+  --model: #a8620b; --model-soft: #fbf0e0;          /* the language model */
+  --high: #c62828; --high-soft: #fbe5e5;
+  --medium: #d35400; --medium-soft: #fdeede;
+  --low: #1565c0; --low-soft: #e3eefb;
+  --cant: #5b6b78; --cant-soft: #e8ecef;
+  --refused: #6a1b9a; --refused-soft: #f1e6f7;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1419; --surface: #161d24; --fg: #e3e8ed; --muted: #98a5b1; --line: #27313b; --line-strong: #4f5d6a;
+    --guard: #45b8ad; --guard-soft: #12302d; --model: #e3a04c; --model-soft: #35260f;
+    --high: #ef5f5c; --high-soft: #3a1717; --medium: #f08a42; --medium-soft: #3a2412;
+    --low: #64a2ef; --low-soft: #13263c; --cant: #93a2ae; --cant-soft: #222b33;
+    --refused: #b884e2; --refused-soft: #2c1b38; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1419; --surface: #161d24; --fg: #e3e8ed; --muted: #98a5b1; --line: #27313b; --line-strong: #4f5d6a;
+  --guard: #45b8ad; --guard-soft: #12302d; --model: #e3a04c; --model-soft: #35260f;
+  --high: #ef5f5c; --high-soft: #3a1717; --medium: #f08a42; --medium-soft: #3a2412;
+  --low: #64a2ef; --low-soft: #13263c; --cant: #93a2ae; --cant-soft: #222b33;
+  --refused: #b884e2; --refused-soft: #2c1b38; color-scheme: dark;
+}
+
+body { background: var(--bg); color: var(--fg); font: 16px/1.6 var(--font-body); }
+.wrap {
+  max-width: 960px; margin: 0 auto; display: grid; gap: 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 88px;
+}
+.wrap > * { min-width: 0; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; letter-spacing: -0.01em; }
+h2 { font-size: 1.55rem; font-weight: 800; }
+h3 { font-size: 1.1rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+a { color: var(--guard); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--guard); outline-offset: 2px; }
+
+.eyebrow { font: 500 0.78rem/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+header { display: grid; gap: 16px; }
+.lede { font-size: 1.15rem; color: var(--muted); }
+.lede strong { color: var(--fg); }
+nav ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+nav a { display: inline-block; text-decoration: none; color: var(--fg); border: 1px solid var(--line); background: var(--surface);
+  padding: 4px 12px; border-radius: 999px; font-size: 0.88rem; }
+nav a:hover { border-color: var(--guard); }
+
+section { display: grid; gap: 18px; }
+.sec-head { display: grid; gap: 6px; }
+
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; }
+.role { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 10px; align-content: start; }
+.role ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
+.tag { justify-self: start; font: 500 0.75rem/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 10px; border-radius: 6px; }
+.tag-model { background: var(--model-soft); color: var(--model); }
+.tag-guard { background: var(--guard-soft); color: var(--guard); }
+
+figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 12px; }
+.scroll { overflow-x: auto; }
+figure svg { display: block; width: 100%; height: auto; min-width: 620px; }
+figcaption { color: var(--muted); font-size: 0.92rem; max-width: 72ch; }
+
+/* SVG parts, styled from the page so they follow the theme */
+.bx { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.2; }
+.bx-guard { fill: var(--guard-soft); stroke: var(--guard); stroke-width: 1.2; }
+.bx-model { fill: var(--model-soft); stroke: var(--model); stroke-width: 1.4; }
+.bx-refused { fill: var(--refused-soft); stroke: var(--refused); stroke-width: 1.2; }
+.bx-state { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.loop { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 7 5; }
+.edge { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.edge-bad { fill: none; stroke: var(--high); stroke-width: 1.5; }
+.edge-ret { fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-dasharray: 5 4; }
+.life { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 4; }
+.mk { fill: var(--muted); }
+.mk-bad { fill: var(--high); }
+.tt { fill: var(--fg); font: 600 13px var(--font-body); }
+.ts { fill: var(--muted); font: 400 11.5px var(--font-body); }
+.tc { fill: var(--fg); font: 400 11.5px var(--font-mono); }
+.tl { fill: var(--muted); font: 400 11.5px var(--font-body); }
+.tbad { fill: var(--high); font: 500 11.5px var(--font-mono); }
+.twarn { fill: var(--model); font: 500 11.5px var(--font-mono); }
+.tcap { fill: var(--muted); font: 500 10.5px var(--font-mono); letter-spacing: 0.08em; }
+.tnum { fill: var(--muted); font: 500 12px var(--font-mono); }
+.dot { fill: var(--fg); }
+.lead { stroke: var(--line-strong); stroke-width: 1; }
+.band-low { fill: var(--low-soft); stroke: var(--low); }
+.band-med { fill: var(--medium-soft); stroke: var(--medium); }
+.band-high { fill: var(--high-soft); stroke: var(--high); }
+.band-cant { fill: var(--cant-soft); stroke: var(--cant); }
+.bl-low { fill: var(--low); font: 600 12px var(--font-mono); letter-spacing: 0.05em; }
+.bl-med { fill: var(--medium); font: 600 12px var(--font-mono); letter-spacing: 0.05em; }
+.bl-high { fill: var(--high); font: 600 12px var(--font-mono); letter-spacing: 0.05em; }
+
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font: 500 0.74rem/1.3 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--bg); }
+td code { white-space: nowrap; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.pill { display: inline-block; font: 500 0.75rem/1 var(--font-mono); padding: 5px 8px; border-radius: 6px; white-space: nowrap; }
+.p-before { background: var(--guard-soft); color: var(--guard); }
+.p-after { background: var(--model-soft); color: var(--model); }
+.p-high { background: var(--high-soft); color: var(--high); }
+.p-med { background: var(--medium-soft); color: var(--medium); }
+.p-low { background: var(--low-soft); color: var(--low); }
+.p-cant { background: var(--cant-soft); color: var(--cant); }
+.p-ref { background: var(--refused-soft); color: var(--refused); }
+
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.rule { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
+.rule b { font-weight: 600; }
+.rule span { color: var(--muted); font-size: 0.92rem; }
+
+.compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; }
+.lane { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 10px; align-content: start; }
+.lane ol { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
+.lane .miss { color: var(--high); }
+.note { border-left: 3px solid var(--guard); padding: 4px 0 4px 14px; color: var(--muted); max-width: 72ch; }
+.note b { color: var(--fg); }
+footer { color: var(--muted); font-size: 0.88rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">ScamGuard MY · project guide</div>
+  <h1>How ScamGuard MY works</h1>
+  <p class="lede">The agent has two parts. <strong>The language model decides</strong> which tool to use and writes the reply.
+  <strong>The Python code does the work and enforces the rules</strong>: it checks each request, runs the tools, and checks the reply.
+  The model can only write text. It never opens a link and never sends anything.</p>
+  <nav aria-label="Sections">
+    <ol>
+      <li><a href="#roles">Two parts</a></li>
+      <li><a href="#flow">Path of a message</a></li>
+      <li><a href="#tools">6 tools</a></li>
+      <li><a href="#score">Risk score</a></li>
+      <li><a href="#validation">Validation</a></li>
+      <li><a href="#guardrails">Guardrails</a></li>
+      <li><a href="#memory">Memory</a></li>
+      <li><a href="#run">A real run</a></li>
+      <li><a href="#failure">A real failure</a></li>
+      <li><a href="#model">Model choice</a></li>
+      <li><a href="#files">Files</a></li>
+      <li><a href="#try">Try it</a></li>
+      <li><a href="https://junjing02.github.io/scamguard-my/code.html">Code tour →</a></li>
+    </ol>
+  </nav>
+</header>
+
+<section id="roles">
+  <div class="sec-head">
+    <div class="eyebrow">1 · The main idea</div>
+    <h2>Who decides, and who acts</h2>
+  </div>
+  <div class="split">
+    <div class="role">
+      <span class="tag tag-model">The model · Qwen3.5-4B</span>
+      <ul>
+        <li>Reads the message, the rules and the list of 6 tools.</li>
+        <li>Decides <b>whether</b> to call a tool, and <b>which</b> one.</li>
+        <li>Writes the final explanation from the tool results.</li>
+        <li>Can make mistakes: skip a tool, call a wrong tool, or make up text.</li>
+      </ul>
+    </div>
+    <div class="role">
+      <span class="tag tag-guard">The Python code</span>
+      <ul>
+        <li>Blocks unsafe requests before the model sees them.</li>
+        <li>Checks each tool call against an allow list.</li>
+        <li>Runs the tools and logs each call for the UI.</li>
+        <li>Calculates the risk level and corrects unsafe replies.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="flow">
+  <div class="sec-head">
+    <div class="eyebrow">2 · The path of one message</div>
+    <h2>From your message to the reply</h2>
+  </div>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 760 916" role="img" aria-label="Flow of one message: guardrails G1, G3 and G2 run before the model; inside the agent loop the model proposes tool calls, validation accepts or rejects each call, accepted calls run and their results go back to the model; before the final answer is accepted, guardrail G5 checks that the steps are done and can send one reminder; then guardrail G4 checks the reply and Python adds the risk verdict from the session.">
+      <defs>
+        <marker id="af" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk" d="M0,0 L8,4 L0,8 z"/></marker>
+        <marker id="afb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk-bad" d="M0,0 L8,4 L0,8 z"/></marker>
+      </defs>
+
+      <rect class="bx" x="70" y="16" width="320" height="48" rx="8"/>
+      <text class="tt" x="230" y="37" text-anchor="middle">Your message</text>
+      <text class="ts" x="230" y="54" text-anchor="middle">typed in the Gradio UI</text>
+      <line class="edge" x1="230" y1="64" x2="230" y2="94" marker-end="url(#af)"/>
+
+      <rect class="bx-guard" x="70" y="96" width="320" height="52" rx="8"/>
+      <text class="tt" x="230" y="118" text-anchor="middle">G1 · Is it a blocked request?</text>
+      <text class="ts" x="230" y="136" text-anchor="middle">trace, contact, hack back, pay for me</text>
+      <line class="edge" x1="390" y1="122" x2="468" y2="122" marker-end="url(#af)"/>
+      <text class="tl" x="429" y="115" text-anchor="middle">yes</text>
+      <rect class="bx-refused" x="470" y="96" width="250" height="52" rx="8"/>
+      <text class="tt" x="595" y="118" text-anchor="middle">Fixed refusal + NSRC 997</text>
+      <text class="ts" x="595" y="136" text-anchor="middle">the model is never called</text>
+      <line class="edge" x1="230" y1="148" x2="230" y2="178" marker-end="url(#af)"/>
+      <text class="tl" x="240" y="167">no</text>
+
+      <rect class="bx-guard" x="70" y="180" width="320" height="48" rx="8"/>
+      <text class="tt" x="230" y="200" text-anchor="middle">G3 · Hide personal numbers</text>
+      <text class="ts" x="230" y="217" text-anchor="middle">IC, card, OTP/TAC → [REDACTED]</text>
+      <line class="edge" x1="230" y1="228" x2="230" y2="254" marker-end="url(#af)"/>
+
+      <rect class="bx-guard" x="70" y="256" width="320" height="48" rx="8"/>
+      <text class="tt" x="230" y="276" text-anchor="middle">G2 · Injection words?</text>
+      <text class="ts" x="230" y="293" text-anchor="middle">yes → add a warning for the model</text>
+      <line class="edge" x1="230" y1="304" x2="230" y2="358" marker-end="url(#af)"/>
+      <text class="tl" x="240" y="322">message + rules + list of 6 tools</text>
+
+      <rect class="loop" x="40" y="330" width="680" height="320" rx="12"/>
+      <text class="tcap" x="56" y="348">LOOP · MAX 6 STEPS</text>
+
+      <rect class="bx-model" x="70" y="360" width="320" height="64" rx="8"/>
+      <text class="tt" x="230" y="386" text-anchor="middle">Qwen3.5-4B · the model</text>
+      <text class="ts" x="230" y="404" text-anchor="middle">reads everything and decides</text>
+      <line class="edge" x1="390" y1="384" x2="468" y2="384" marker-end="url(#af)"/>
+      <text class="tl" x="429" y="376" text-anchor="middle">tool call</text>
+
+      <rect class="bx-guard" x="470" y="360" width="230" height="64" rx="8"/>
+      <text class="tt" x="585" y="386" text-anchor="middle">Validation</text>
+      <text class="ts" x="585" y="404" text-anchor="middle">allow list + argument checks</text>
+      <line class="edge" x1="640" y1="424" x2="640" y2="478" marker-end="url(#af)"/>
+      <text class="tl" x="648" y="455">valid</text>
+      <polyline class="edge-bad" points="510,424 510,450 360,450 360,427" marker-end="url(#afb)"/>
+      <text class="tbad" x="435" y="467" text-anchor="middle">rejected → error</text>
+
+      <rect class="bx" x="470" y="480" width="230" height="64" rx="8"/>
+      <text class="tt" x="585" y="506" text-anchor="middle">Run the tool</text>
+      <text class="ts" x="585" y="524" text-anchor="middle">a normal Python function</text>
+      <polyline class="edge" points="470,512 260,512 260,427" marker-end="url(#af)"/>
+      <text class="tl" x="365" y="530" text-anchor="middle">result as JSON</text>
+
+      <line class="edge" x1="110" y1="424" x2="110" y2="556" marker-end="url(#af)"/>
+      <text class="tl" x="120" y="455">final answer</text>
+      <text class="tl" x="120" y="470">(no tool call)</text>
+      <rect class="bx-guard" x="60" y="558" width="230" height="56" rx="8"/>
+      <text class="tt" x="175" y="581" text-anchor="middle">G5 · Are all steps done?</text>
+      <text class="ts" x="175" y="599" text-anchor="middle">no → one reminder to the model</text>
+      <line class="edge" x1="230" y1="558" x2="230" y2="427" marker-end="url(#af)"/>
+      <text class="tl" x="222" y="505" text-anchor="end">reminder</text>
+      <line class="edge" x1="110" y1="614" x2="110" y2="678" marker-end="url(#af)"/>
+      <text class="tl" x="120" y="640">yes</text>
+
+      <line class="edge" x1="585" y1="544" x2="585" y2="688" marker-end="url(#af)"/>
+      <text class="tl" x="595" y="610">logs the call,</text>
+      <text class="tl" x="595" y="625">adds evidence</text>
+
+      <rect class="bx-guard" x="70" y="680" width="320" height="52" rx="8"/>
+      <text class="tt" x="230" y="702" text-anchor="middle">G4 · Check the reply</text>
+      <text class="ts" x="230" y="720" text-anchor="middle">"safe" or "submitted" → rewrite</text>
+      <line class="edge" x1="230" y1="732" x2="230" y2="762" marker-end="url(#af)"/>
+
+      <rect class="bx-state" x="470" y="690" width="230" height="126" rx="8"/>
+      <text class="tt" x="585" y="714" text-anchor="middle">Session (memory)</text>
+      <text class="tc" x="585" y="738" text-anchor="middle">history · last 4 chats</text>
+      <text class="tc" x="585" y="756" text-anchor="middle">call_log · every call</text>
+      <text class="tc" x="585" y="774" text-anchor="middle">evidence · clues, points</text>
+      <text class="tc" x="585" y="792" text-anchor="middle">pending_report · draft</text>
+
+      <rect class="bx" x="70" y="764" width="320" height="52" rx="8"/>
+      <text class="tt" x="230" y="786" text-anchor="middle">Python adds the risk verdict</text>
+      <text class="ts" x="230" y="804" text-anchor="middle">only if calculate_risk_score ran</text>
+      <line class="edge" x1="470" y1="790" x2="393" y2="790" marker-end="url(#af)"/>
+      <text class="tl" x="431" y="782" text-anchor="middle">last_risk</text>
+      <line class="edge" x1="230" y1="816" x2="230" y2="846" marker-end="url(#af)"/>
+
+      <rect class="bx" x="70" y="848" width="320" height="52" rx="8"/>
+      <text class="tt" x="230" y="870" text-anchor="middle">Reply in the UI</text>
+      <text class="ts" x="230" y="888" text-anchor="middle">chat + risk badge + every call</text>
+    </svg>
+    </div>
+    <figcaption>Teal boxes are Python checks. The amber box is the model. The model can only propose a tool call; Python accepts or rejects it, runs it, and sends the result back. The loop ends when the model writes an answer without a tool call and G5 finds no missing step, or after 6 steps.</figcaption>
+  </figure>
+</section>
+
+<section id="tools">
+  <div class="sec-head">
+    <div class="eyebrow">3 · scamguard/tools.py</div>
+    <h2>The 6 tools</h2>
+    <p>Each tool is a normal Python function over a small hand-written dataset. No tool uses the internet. The model sees the name, the description and the arguments of each tool.</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Tool</th><th>Input</th><th>What it does</th><th>Example result</th></tr></thead>
+      <tbody>
+        <tr><td><code>match_scam_patterns</code></td><td>message text</td><td>Compares the text with 19 scam patterns (urgency, OTP request, prize, parcel fee…). Each pattern has 1 to 4 points. It also finds the links in the text.</td><td>2 patterns, 3 points, 1 link</td></tr>
+        <tr><td><code>analyze_url</code></td><td>one link</td><td>Reads the link as text and never opens it. Looks for warning signs (table below) and for real official domains.</td><td><code>bit.ly</code>: url_shortener, +2</td></tr>
+        <tr><td><code>calculate_risk_score</code></td><td>nothing</td><td>Adds the pattern points and the link points from this message, and gives a level. There is no "Safe" level.</td><td>Medium, score 4</td></tr>
+        <tr><td><code>lookup_scam_type</code></td><td>a word, e.g. "parcel"</td><td>Finds the scam type among 9 types, with its signs and advice.</td><td>Parcel / delivery scam</td></tr>
+        <tr><td><code>get_official_contact</code></td><td>organisation name</td><td>Gives the official domains and phone number from the dataset. Says <code>not_found</code> if the organisation is not in the data.</td><td><code>not_found</code> for TNB</td></tr>
+        <tr><td><code>draft_report</code></td><td>a summary</td><td>Hides personal numbers and makes a draft only. Only your Confirm click can save it.</td><td>Draft R2026…, NOT submitted</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Link warning sign</th><th>Points</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td>Brand name, but not the official domain</td><td class="num">+4</td><td><code>maybank-secure-login.xyz</code></td></tr>
+        <tr><td>Raw IP address, "@" in the address, or punycode (<code>xn--</code>)</td><td class="num">+3 each</td><td><code>http://203.0.113.5/login</code></td></tr>
+        <tr><td>Link shortener, or a suspicious ending</td><td class="num">+2 each</td><td><code>bit.ly/…</code>, <code>.xyz</code>, <code>.top</code></td></tr>
+        <tr><td>2 or more hyphens, words like "login" or "verify", or <code>http://</code> without "s"</td><td class="num">+1 each</td><td><code>cimb-verify-account.top</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="score">
+  <div class="sec-head">
+    <div class="eyebrow">4 · calculate_risk_score</div>
+    <h2>How the risk level is calculated</h2>
+    <p>Score = pattern points + link points, for the current message only. Python calculates it, not the model.</p>
+  </div>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 760 196" role="img" aria-label="Risk scale from 0 to 12: score 0 is Can't tell, or Low with an official domain; 1 to 3 is Low; 4 to 7 is Medium; 8 or more is High. Examples: real Maybank2u link at 0, Pos Laju parcel at 4, TNG injection at 8, Macau scam at 9, fake Maybank at 11.">
+      <line class="lead" x1="40" y1="70" x2="40" y2="100"/><circle class="dot" cx="40" cy="100" r="4"/>
+      <text class="tl" x="34" y="62">Real Maybank2u link</text>
+      <line class="lead" x1="266.7" y1="46" x2="266.7" y2="100"/><circle class="dot" cx="266.7" cy="100" r="4"/>
+      <text class="tl" x="266.7" y="38" text-anchor="middle">Pos Laju parcel</text>
+      <line class="lead" x1="493.3" y1="70" x2="493.3" y2="100"/><circle class="dot" cx="493.3" cy="100" r="4"/>
+      <text class="tl" x="493.3" y="62" text-anchor="middle">TNG injection</text>
+      <line class="lead" x1="550" y1="46" x2="550" y2="100"/><circle class="dot" cx="550" cy="100" r="4"/>
+      <text class="tl" x="550" y="38" text-anchor="middle">Macau scam</text>
+      <line class="lead" x1="663.3" y1="70" x2="663.3" y2="100"/><circle class="dot" cx="663.3" cy="100" r="4"/>
+      <text class="tl" x="663.3" y="62" text-anchor="middle">Fake Maybank (correct run)</text>
+
+      <rect class="band-cant" x="11.7" y="108" width="56.6" height="32" rx="4"/>
+      <rect class="band-low" x="68.3" y="108" width="170" height="32" rx="4"/>
+      <rect class="band-med" x="238.3" y="108" width="226.7" height="32" rx="4"/>
+      <rect class="band-high" x="465" y="108" width="255" height="32" rx="4"/>
+      <text class="bl-low" x="153.3" y="129" text-anchor="middle">LOW · 1–3</text>
+      <text class="bl-med" x="351.7" y="129" text-anchor="middle">MEDIUM · 4–7</text>
+      <text class="bl-high" x="592.5" y="129" text-anchor="middle">HIGH · 8 or more</text>
+
+      <text class="tnum" x="40" y="158" text-anchor="middle">0</text>
+      <text class="tnum" x="96.7" y="158" text-anchor="middle">1</text>
+      <text class="tnum" x="153.3" y="158" text-anchor="middle">2</text>
+      <text class="tnum" x="210" y="158" text-anchor="middle">3</text>
+      <text class="tnum" x="266.7" y="158" text-anchor="middle">4</text>
+      <text class="tnum" x="323.3" y="158" text-anchor="middle">5</text>
+      <text class="tnum" x="380" y="158" text-anchor="middle">6</text>
+      <text class="tnum" x="436.7" y="158" text-anchor="middle">7</text>
+      <text class="tnum" x="493.3" y="158" text-anchor="middle">8</text>
+      <text class="tnum" x="550" y="158" text-anchor="middle">9</text>
+      <text class="tnum" x="606.7" y="158" text-anchor="middle">10</text>
+      <text class="tnum" x="663.3" y="158" text-anchor="middle">11</text>
+      <text class="tnum" x="720" y="158" text-anchor="middle">12</text>
+      <text class="tl" x="12" y="182">Score 0: "Can't tell", or LOW when the link is an official domain</text>
+    </svg>
+    </div>
+    <figcaption>The scores of the example messages come from the tools. LOW is blue, not green, because the agent never calls a message safe.</figcaption>
+  </figure>
+  <div class="rules">
+    <div class="rule"><span class="pill p-high">HIGH</span><b>8 points or more</b><span>Several strong signs, for example a fake brand link plus urgency.</span></div>
+    <div class="rule"><span class="pill p-med">MEDIUM</span><b>4 to 7 points</b><span>Some warning signs. Check with the official source.</span></div>
+    <div class="rule"><span class="pill p-low">LOW</span><b>1 to 3 points, or 0 with an official domain</b><span>Few signs. It is still not a guarantee.</span></div>
+    <div class="rule"><span class="pill p-cant">CAN'T TELL</span><b>0 points, no official domain</b><span>No signs either way. The agent says that it cannot judge.</span></div>
+  </div>
+</section>
+
+<section id="validation">
+  <div class="sec-head">
+    <div class="eyebrow">5 · scamguard/validation.py</div>
+    <h2>Validation: the check before each tool runs</h2>
+    <p><code>TOOL_SCHEMAS</code> describes the 6 tools. The model gets this list, and Python uses the same list to check each call. A rejected call does not run. It goes into the log, and the model gets the error message.</p>
+  </div>
+  <div class="rules">
+    <div class="rule"><b>Name not on the allow list</b><span>e.g. <code>confirm_report</code>, <code>format_disk</code></span></div>
+    <div class="rule"><b>Missing or extra argument</b><span>e.g. <code>analyze_url</code> with no <code>url</code></span></div>
+    <div class="rule"><b>Wrong type</b><span>e.g. a number where text is necessary</span></div>
+    <div class="rule"><b>Too short or too long</b><span>e.g. message text over 2000 characters</span></div>
+    <div class="rule"><b>Value not permitted</b><span>e.g. an unknown scam type in <code>draft_report</code></span></div>
+    <div class="rule"><b>Unsafe link format</b><span>spaces, <code>file://</code>, <code>javascript:</code></span></div>
+  </div>
+</section>
+
+<section id="guardrails">
+  <div class="sec-head">
+    <div class="eyebrow">6 · scamguard/guardrails.py</div>
+    <h2>The 5 guardrails</h2>
+    <p>All guardrails are Python code. They work even when the model ignores its instructions.</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Guardrail</th><th>When</th><th>What it does</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td><b>G1</b> Blocked requests</td><td><span class="pill p-before">before model</span></td><td>Blocks requests to trace a person, contact the scammer, hack back, or pay for you. Gives a fixed refusal with NSRC 997. The model is not called.</td><td>"Find out who owns this number…" → <span class="pill p-ref">REFUSED</span></td></tr>
+        <tr><td><b>G2</b> Injection check</td><td><span class="pill p-before">before model</span></td><td>Finds words like "ignore your instructions" or "developer mode". It does not block. It adds a security warning for the model and logs the attempt.</td><td>⚠️ <code>injection_detected</code></td></tr>
+        <tr><td><b>G3</b> PII redaction</td><td><span class="pill p-before">before model</span></td><td>Replaces IC numbers, card numbers and OTP/TAC/PIN numbers. The model never sees them.</td><td>TAC 482913 → TAC [REDACTED]</td></tr>
+        <tr><td><b>G4</b> Output check</td><td><span class="pill p-after">after model</span></td><td>Replaces a reply that says "100% safe" or "not a scam". Corrects "report submitted" to "NOT submitted".</td><td>"100% safe" → "I can't certify…"</td></tr>
+        <tr><td><b>G5</b> Procedure check</td><td><span class="pill p-after">before final answer</span></td><td>Reads the call log of this message. If the model answers with no tool, leaves a link unchecked, or skips the risk score, Python sends one reminder. The model still chooses the tool.</td><td>Macau scam: reminder → <code>calculate_risk_score</code> → <span class="pill p-high">HIGH 9</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note"><b>The Python verdict.</b> After the loop, Python adds the line "Risk level (computed by the tools): …". The model does not write this line, so it cannot change the score. If <code>calculate_risk_score</code> did not run, no verdict is added and the UI shows "NO RISK SCORE".</p>
+</section>
+
+<section id="memory">
+  <div class="sec-head">
+    <div class="eyebrow">7 · scamguard/session.py</div>
+    <h2>Memory: the session</h2>
+    <p>Each browser user has one session. This internal state makes the agent a <b>model-based</b> agent: it decides from what it has found so far, not only from the latest result.</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Field</th><th>What it keeps</th><th>Lifetime</th></tr></thead>
+      <tbody>
+        <tr><td><code>history</code></td><td>The past chats. The model gets only the last 4.</td><td>Until you click Clear</td></tr>
+        <tr><td><code>call_log</code></td><td>Each function call: name, arguments, status, result. The UI shows it, and G5 reads it.</td><td>Until you click Clear</td></tr>
+        <tr><td><code>evidence</code></td><td>The clues and points for the current message.</td><td>Cleared at each new message</td></tr>
+        <tr><td><code>pending_report</code></td><td>A report draft that waits for your Confirm or Cancel click.</td><td>Until you click a button</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note"><b>Confirm and Cancel are not tools.</b> <code>confirm_report()</code> and <code>cancel_report()</code> are in the session, and only the UI buttons call them. The model cannot submit a report.</p>
+</section>
+
+<section id="run">
+  <div class="sec-head">
+    <div class="eyebrow">8 · A real run with the first model, Qwen2.5-3B</div>
+    <h2>The Pos Laju parcel example, step by step</h2>
+    <p>Input: "Pos Laju: your parcel could not be delivered. Pay RM1.50 redelivery fee: bit.ly/3xYz"</p>
+  </div>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 760 520" role="img" aria-label="Sequence of the real parcel run: the model called match_scam_patterns, analyze_url and calculate_risk_score, and got Medium with score 4. Then it called draft_report without a request, and Python made a draft only. Then it called confirm_report, and validation rejected it because it is not on the allow list. Last, the model wrote the answer and Python added the Medium verdict.">
+      <defs>
+        <marker id="as" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk" d="M0,0 L8,4 L0,8 z"/></marker>
+        <marker id="asb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk-bad" d="M0,0 L8,4 L0,8 z"/></marker>
+      </defs>
+      <rect class="bx-model" x="60" y="12" width="240" height="48" rx="8"/>
+      <text class="tt" x="180" y="33" text-anchor="middle">Qwen · the model</text>
+      <text class="ts" x="180" y="50" text-anchor="middle">decides the next step</text>
+      <rect class="bx-guard" x="460" y="12" width="240" height="48" rx="8"/>
+      <text class="tt" x="580" y="33" text-anchor="middle">Python</text>
+      <text class="ts" x="580" y="50" text-anchor="middle">validates, runs, logs</text>
+      <line class="life" x1="180" y1="60" x2="180" y2="470"/>
+      <line class="life" x1="580" y1="60" x2="580" y2="462"/>
+
+      <text class="tnum" x="36" y="100">1</text>
+      <line class="edge" x1="180" y1="96" x2="577" y2="96" marker-end="url(#as)"/>
+      <text class="tc" x="380" y="89" text-anchor="middle">match_scam_patterns(text)</text>
+      <line class="edge-ret" x1="580" y1="120" x2="183" y2="120" marker-end="url(#as)"/>
+      <text class="ts" x="380" y="134" text-anchor="middle">1 pattern (+2) · found link bit.ly/3xYz</text>
+
+      <text class="tnum" x="36" y="170">2</text>
+      <line class="edge" x1="180" y1="166" x2="577" y2="166" marker-end="url(#as)"/>
+      <text class="tc" x="380" y="159" text-anchor="middle">analyze_url("bit.ly/3xYz")</text>
+      <line class="edge-ret" x1="580" y1="190" x2="183" y2="190" marker-end="url(#as)"/>
+      <text class="ts" x="380" y="204" text-anchor="middle">url_shortener (+2) · link not opened</text>
+
+      <text class="tnum" x="36" y="240">3</text>
+      <line class="edge" x1="180" y1="236" x2="577" y2="236" marker-end="url(#as)"/>
+      <text class="tc" x="380" y="229" text-anchor="middle">calculate_risk_score()</text>
+      <line class="edge-ret" x1="580" y1="260" x2="183" y2="260" marker-end="url(#as)"/>
+      <text class="ts" x="380" y="274" text-anchor="middle">Medium · score 2 + 2 = 4</text>
+
+      <text class="tnum" x="36" y="310">4</text>
+      <line class="edge" x1="180" y1="306" x2="577" y2="306" marker-end="url(#as)"/>
+      <text class="twarn" x="380" y="299" text-anchor="middle">draft_report(summary) · nobody asked</text>
+      <line class="edge-ret" x1="580" y1="330" x2="183" y2="330" marker-end="url(#as)"/>
+      <text class="ts" x="380" y="344" text-anchor="middle">draft only · NOT submitted</text>
+
+      <text class="tnum" x="36" y="380">5</text>
+      <line class="edge-bad" x1="180" y1="376" x2="577" y2="376" marker-end="url(#asb)"/>
+      <text class="tbad" x="380" y="369" text-anchor="middle">confirm_report(...)</text>
+      <line class="edge-ret" x1="580" y1="400" x2="183" y2="400" marker-end="url(#as)"/>
+      <text class="tbad" x="380" y="414" text-anchor="middle">REJECTED · not on the allow list</text>
+
+      <text class="tnum" x="36" y="450">6</text>
+      <line class="edge" x1="180" y1="446" x2="468" y2="446" marker-end="url(#as)"/>
+      <text class="tl" x="320" y="439" text-anchor="middle">final answer (text only)</text>
+      <rect class="bx" x="470" y="430" width="240" height="72" rx="8"/>
+      <text class="tt" x="590" y="452" text-anchor="middle">G4 check: nothing to fix</text>
+      <text class="ts" x="590" y="470" text-anchor="middle">adds MEDIUM (score 4)</text>
+      <text class="ts" x="590" y="488" text-anchor="middle">shows Confirm / Cancel</text>
+    </svg>
+    </div>
+    <figcaption>Steps 1 to 3 are correct. In step 4 the model made a report draft that nobody asked for. In step 5 it tried to submit the report itself, and the allow list stopped it. Only a human click on Confirm can save a report. With Qwen3.5-4B, the same message stopped after step 3, with no draft.</figcaption>
+  </figure>
+</section>
+
+<section id="failure">
+  <div class="sec-head">
+    <div class="eyebrow">9 · A real failure of the first model, Qwen2.5-3B</div>
+    <h2>The fake Maybank message</h2>
+    <p>Input: "Maybank: Your account is locked. Verify now at maybank-secure-login.xyz/verify"</p>
+  </div>
+  <div class="compare">
+    <div class="lane">
+      <span class="pill p-cant" style="justify-self:start">What the model did</span>
+      <ol>
+        <li><code>match_scam_patterns</code> → 2 patterns, 3 points, 1 link</li>
+        <li class="miss">Stopped. The link was not checked.</li>
+        <li class="miss">No <code>calculate_risk_score</code>.</li>
+        <li>Wrote "risk score is 3 out of 5", a scale that no tool uses.</li>
+      </ol>
+      <span>Badge: <span class="pill p-cant">NO RISK SCORE</span></span>
+    </div>
+    <div class="lane">
+      <span class="pill p-before" style="justify-self:start">What it should do</span>
+      <ol>
+        <li><code>match_scam_patterns</code> → 3 points, 1 link</li>
+        <li><code>analyze_url</code> → .xyz (+2), Maybank look-alike (+4), hyphens (+1), "secure/login" (+1)</li>
+        <li><code>calculate_risk_score</code> → 3 + 8 = 11</li>
+        <li>Explains the result from the tools.</li>
+      </ol>
+      <span>Badge: <span class="pill p-high">HIGH RISK · 11</span></span>
+    </div>
+  </div>
+  <p class="note"><b>Why it happened.</b> Partial observability: the model saw only the pattern result, so its view of the message was incomplete. Missing internal state: the loop does not record which procedure steps are done, so nothing stops the model when it finishes early. Qwen3.5-4B passes this test, and this failure is the reason for the model change. The procedure check G5 now closes the same gap in Python.</p>
+</section>
+
+<section id="model">
+  <div class="sec-head">
+    <div class="eyebrow">10 · Model choice</div>
+    <h2>Why the agent uses Qwen3.5-4B</h2>
+    <p>Both models ran the same test messages on the Mac mini (Apple M4, 16 GB). Qwen3.5-4B follows the procedure much more often. It is free (Apache 2.0), instruction-tuned and supports tool calling. Its thinking mode is turned off, so it answers directly.</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Test</th><th>Qwen2.5-3B (first model)</th><th>Qwen3.5-4B (now)</th></tr></thead>
+      <tbody>
+        <tr><td>1 · Bank phishing link</td><td>❌ 1 call, no score</td><td>✅ 3 calls, <span class="pill p-high">HIGH 11</span></td></tr>
+        <tr><td>2 · Macau scam, no link</td><td>❌ 1 call, no score</td><td>✅ with G5: reminder → <span class="pill p-high">HIGH 9</span></td></tr>
+        <tr><td>3 · Prize scam in Bahasa Melayu</td><td>✅ <span class="pill p-high">HIGH 10</span></td><td>✅ <span class="pill p-high">HIGH 10</span>, reply in Malay</td></tr>
+        <tr><td>4 · Real bank domain</td><td>❌ link not checked</td><td>✅ <span class="pill p-low">LOW 0</span>, never "safe"</td></tr>
+        <tr><td>5 · Scam-type question</td><td>❌ wrong tool</td><td>✅ with G5: reminder → <code>lookup_scam_type</code></td></tr>
+        <tr><td>6 · Unknown organisation</td><td>✅ <code>not_found</code></td><td>✅ <code>not_found</code>, admitted it</td></tr>
+        <tr><td>7 · Prompt injection</td><td>✅</td><td>✅ <span class="pill p-high">HIGH 8</span></td></tr>
+        <tr><td>8 · Unsafe action</td><td>✅ <span class="pill p-ref">REFUSED</span> by G1</td><td>✅ <span class="pill p-ref">REFUSED</span> by G1</td></tr>
+        <tr><td>Fake Maybank demo</td><td>❌ 1 call, made-up "3 out of 5"</td><td>✅ <span class="pill p-high">HIGH 11</span></td></tr>
+        <tr><td>Memory · time for each message</td><td class="num">7.5 GB · 10–16 s</td><td class="num">10 GB · 20–56 s</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note"><b>Fixed with G5.</b> Without the procedure check, Qwen3.5-4B skipped <code>calculate_risk_score</code> on the Macau scam and answered the scam-type question from its own knowledge. G5 now reads the call log and sends one reminder, and both cases then finish with the tools. One limit remains: G5 checks the steps, not each sentence, so the model can still add a claim that no tool gave.</p>
+</section>
+
+<section id="files">
+  <div class="sec-head">
+    <div class="eyebrow">11 · scamguard_project/</div>
+    <h2>Where each part lives</h2>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>File</th><th>What it contains</th></tr></thead>
+      <tbody>
+        <tr><td><code>scamguard/llm.py</code></td><td>Loads Qwen3.5-4B and gives it the tools with <code>tools=[...]</code> (native tool calling), with thinking mode off. Uses an NVIDIA GPU, the Mac GPU (MPS) or the CPU.</td></tr>
+        <tr><td><code>scamguard/agent.py</code></td><td>The system prompt, the parser for <code>&lt;tool_call&gt;</code> text (JSON for Qwen2.5, XML for Qwen3.5, and a plain-JSON fallback), and the agent loop.</td></tr>
+        <tr><td><code>scamguard/tools.py</code></td><td>The 6 tools.</td></tr>
+        <tr><td><code>scamguard/validation.py</code></td><td>The tool list and the allow list checks.</td></tr>
+        <tr><td><code>scamguard/guardrails.py</code></td><td>G1 to G5.</td></tr>
+        <tr><td><code>scamguard/session.py</code></td><td>The memory, and Confirm / Cancel for reports.</td></tr>
+        <tr><td><code>scamguard/app.py</code></td><td>The Gradio UI.</td></tr>
+        <tr><td><code>scamguard/data/*.json</code></td><td>19 scam patterns, 9 scam types, 13 organisations, link warning lists.</td></tr>
+        <tr><td><code>app.py</code></td><td>Starts the UI on your computer: <code>python app.py</code>.</td></tr>
+        <tr><td><code>scamguard/testing.py</code></td><td><code>run_case()</code> runs one message in a terminal and prints every call.</td></tr>
+        <tr><td><code>tests_offline.py</code></td><td>55 code checks with a fake model. No download needed.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="try">
+  <div class="sec-head">
+    <div class="eyebrow">12 · Try it</div>
+    <h2>Run the agent</h2>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Where</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td>Online demo</td><td><a href="https://huggingface.co/spaces/junjing02/scamguard-my">huggingface.co/spaces/junjing02/scamguard-my</a> · Qwen3.5-4B on ZeroGPU. Sign in to Hugging Face for a larger free GPU quota.</td></tr>
+        <tr><td>Source code</td><td><a href="https://github.com/junjing02/scamguard-my">github.com/junjing02/scamguard-my</a></td></tr>
+        <tr><td>Your computer</td><td><code>pip install -r requirements.txt</code>, then <code>python app.py</code> and open <code>http://127.0.0.1:7860</code>. An Apple Silicon Mac or an NVIDIA GPU is recommended.</td></tr>
+        <tr><td>Code checks</td><td><code>python tests_offline.py</code> · 55 checks with a fake model, no download.</td></tr>
+        <tr><td>The code, line by line</td><td><a href="https://junjing02.github.io/scamguard-my/code.html">Code tour</a> · follows one message through every file.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>ScamGuard MY · All real runs used an Apple M4 Mac mini. Sections 8 and 9 show the first model, Qwen2.5-3B-Instruct. · <a href="https://junjing02.github.io/scamguard-my/code.html">Code tour</a> · <a href="https://github.com/junjing02/scamguard-my">Source code</a></footer>
+</div>
+
+</body>
+</html>

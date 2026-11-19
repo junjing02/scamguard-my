@@ -2,6 +2,10 @@
 
 An LLM tool-calling agent that checks suspicious Malaysian scam messages (SMS, WhatsApp, email, links) and knows its limits.
 
+- **Project guide:** https://junjing02.github.io/scamguard-my/ (how it works, with diagrams)
+- **Code tour:** https://junjing02.github.io/scamguard-my/code.html (one message through every file)
+- **Online demo:** https://huggingface.co/spaces/junjing02/scamguard-my (Qwen3.5-4B on ZeroGPU)
+
 **Model:** `Qwen/Qwen3.5-4B` on a GPU or Apple Silicon (free, Apache 2.0, native tool calling, thinking mode off).
 On a CPU-only computer, `app.py` uses `Qwen/Qwen3.5-2B`, because the 4B model needs about 18 GB of memory on a CPU.
 This works but is very slow (several minutes per message). Set the `SCAMGUARD_MODEL` variable to choose another model.
@@ -29,3 +33,4 @@ python app.py                # downloads the model once (~9 GB), then open http:
 | `scamguard/testing.py` | `run_case()`: runs one message and prints the input, every call and the response |
 | `scamguard/data/` | Hand-written dataset: scam patterns, scam types, official organisations, URL flags |
 | `tests_offline.py` | Offline code checks with a scripted mock LLM |
+| `docs/` | The project guide and the code tour (served by GitHub Pages) |
