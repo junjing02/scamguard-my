@@ -95,12 +95,16 @@ _ADVICE = {
     "Low": "Few warning signs, but this is not a guarantee. Still check who sent it.",
     "Can't tell": "No signs either way. This does NOT mean that the message is safe.",
 }
-_ICON = {"ok": "✅", "not_found": "❔", "draft_created": "📝", "rejected": "⛔", "error": "❌",
-         "blocked": "🛑", "flagged": "⚠️", "applied": "🛡️", "reminded": "🔁"}
+# status code -> (icon, plain words shown to the user)
+_STATUS = {"ok": ("✅", "done"), "not_found": ("❔", "not in the data"), "draft_created": ("📝", "draft made"),
+           "rejected": ("⛔", "rejected"), "error": ("❌", "error"), "blocked": ("🛑", "blocked"),
+           "flagged": ("⚠️", "flagged"), "applied": ("🛡️", "applied"), "reminded": ("🔁", "reminder sent")}
+_BANDS = [("Low", "0–3"), ("Medium", "4–7"), ("High", "8+")]   # the score bands of calculate_risk_score
 _GREY = "#546e7a"
 _PURPLE = "#6a1b9a"
+_CARD = ("border:1px solid var(--border-color-primary);border-radius:10px;padding:10px 12px;"
+         "background:var(--background-fill-secondary)")   # Gradio's CSS variables: readable in light and dark
 _READY = ("READY", _GREY, "Pick an example or paste your own message, then press Check.")
-_NOTHING_YET = "### What the agent did\n_Nothing yet._"
 
 
 def _short(obj, n=350):
@@ -109,16 +113,39 @@ def _short(obj, n=350):
     return s if len(s) <= n else s[: n - 3] + "..."
 
 
-def _badge(label, colour, sub, advice="", reasons=()):
+def _meter(level):
+    """The risk meter: the band of this level is solid, the other bands are faint."""
+    cells = "".join(
+        f'<div style="flex:1;text-align:center;padding:4px 0;border-radius:6px;font-size:.8em;font-weight:700;'
+        f'background:rgba(255,255,255,{.95 if name == level else .2});'
+        f'color:{_BADGE[name][1] if name == level else "#fff"}">{name} {band}</div>'
+        for name, band in _BANDS)
+    return f'<div style="display:flex;gap:4px;margin-top:10px">{cells}</div>'
+
+
+def _badge(label, colour, sub, advice="", reasons=(), meter=""):
     """The verdict card. Text from tools/user is escaped: it goes into raw HTML."""
     items = "".join(f"<li>{html.escape(r)}</li>" for r in reasons)
     return (f'<div style="background:{colour};color:#fff;border-radius:12px;padding:16px 18px">'
             f'<div style="font-size:1.5em;font-weight:800;letter-spacing:.02em">{label}</div>'
-            f'<div style="opacity:.92">{sub}</div>'
+            f'<div style="opacity:.92">{sub}</div>' + meter
             + (f'<div style="margin-top:10px;font-weight:600">{advice}</div>' if advice else "")
-            + (f'<div style="margin-top:10px;font-size:.9em;opacity:.85">Why:</div>'
+            + (f'<div style="margin-top:10px;font-size:.9em;opacity:.85">Why this level:</div>'
                f'<ul style="margin:4px 0 0 18px;padding:0;font-size:.92em">{items}</ul>' if items else "")
             + "</div>")
+
+
+def _panel(title, body):
+    """A titled panel, such as 'What the agent did'."""
+    return f'<div style="display:grid;gap:8px"><div style="font-weight:700;font-size:1.1em">{title}</div>{body}</div>'
+
+
+def _note(text):
+    """A short grey note inside a panel."""
+    return f'<div style="opacity:.7;font-style:italic">{text}</div>'
+
+
+_NOTHING_YET = _panel("What the agent did", _note("Nothing yet."))
 
 
 def _expected_html(steps, result, note):
@@ -148,8 +175,9 @@ def _verdict(session, calls):
     if session.last_risk:
         r = session.last_risk
         label, colour = _BADGE[r["level"]]
+        meter = _meter(r["level"]) if r["level"] in ("High", "Medium", "Low") else ""
         return _badge(label, colour, f"Score {r['score']} from the tools. A heuristic, never a guarantee.",
-                      _ADVICE[r["level"]], r["reasons"][:4])
+                      _ADVICE[r["level"]], r["reasons"][:4], meter)
     if any(c["function"] in ("match_scam_patterns", "analyze_url") for c in calls):
         return _badge("NO RISK SCORE", _GREY, "The model checked the message but did not calculate the risk.",
                       "The check is incomplete. Treat the message with care.")
@@ -196,19 +224,24 @@ def _step_title(c):
     return _STEP_TITLE.get(c["function"], "Function not on the allow list")
 
 
-def _calls_md(calls, seconds=None):
-    """The 'What the agent did' panel: one block per step with the function, its arguments and the result."""
+def _steps_html(calls, seconds=None):
+    """The 'What the agent did' panel: one card per step with the title, the status, the call and the result."""
     took = f" · {seconds:.0f} s" if seconds is not None else ""
     if not calls:
-        return f"### What the agent did{took}\n_The model answered without calling any function._"
-    out = [f"### What the agent did · {len(calls)} step(s){took}"]
+        return _panel(f"What the agent did{took}", _note("The model answered without calling any function."))
+    cards = []
     for i, c in enumerate(calls, 1):
         res = c["result"]
         status = res.get("status", c["status"]) if isinstance(res, dict) else c["status"]
-        out.append(f"**Step {i} · {_step_title(c)}** {_ICON.get(status, '•')} {status}  \n"
-                   f"`{c['function']}` · arguments: `{_short(c['arguments'], 150)}`  \n"
-                   f"→ {_summary(c['function'], res)}")
-    return "\n\n".join(out)
+        icon, words = _STATUS.get(status, ("•", str(status)))
+        cards.append(
+            f'<div style="{_CARD}">'
+            f'<div style="display:flex;justify-content:space-between;gap:8px;font-weight:700">'
+            f'<span>{i}. {html.escape(_step_title(c))}</span><span style="white-space:nowrap">{icon} {words}</span></div>'
+            f'<div style="font-family:var(--font-mono);font-size:.8em;opacity:.7;margin:4px 0;overflow-wrap:anywhere">'
+            f'{html.escape(str(c["function"]))}({html.escape(_short(c["arguments"], 150))})</div>'
+            f'<div>{html.escape(_summary(c["function"], res))}</div></div>')
+    return _panel(f"What the agent did · {len(calls)} step(s){took}", "".join(cards))
 
 
 def _toolbox_md(calls=()):
@@ -264,8 +297,9 @@ def build_ui(llm):
         if not text:
             return gr.update(), chat or [], "", gr.update(), gr.update(), gr.update()
         checking = _badge("CHECKING…", "#37474f", "The model is reading the message. This takes about 20–60 seconds.")
+        working = _panel("What the agent did", _note("Working… The steps appear here when the check ends."))
         return ("", (chat or []) + [{"role": "user", "content": text}], text, checking,
-                "### What the agent did\n_Working…_", gr.update(interactive=False, value="Checking…"))
+                working, gr.update(interactive=False, value="Checking…"))
 
     # step 2: run the agent
     def answer(text, chat, session):
@@ -277,7 +311,7 @@ def build_ui(llm):
         start = time.time()
         result = agent.run_turn(session, text)
         chat = chat + [{"role": "assistant", "content": result["reply"]}]
-        return (chat, _verdict(session, result["calls"]), _calls_md(result["calls"], time.time() - start),
+        return (chat, _verdict(session, result["calls"]), _steps_html(result["calls"], time.time() - start),
                 _toolbox_md(result["calls"]), *report_view(session), result["calls"], log_rows(session), session, done)
 
     def on_report(chat, session, confirm):
@@ -293,16 +327,18 @@ def build_ui(llm):
 
     with gr.Blocks(title="ScamGuard MY") as demo:
         gr.Markdown("# 🛡️ ScamGuard MY\n"
-                    "Paste a suspicious SMS, WhatsApp message, email or link, then press **Check**. "
-                    "Links are analysed as text and never opened, and the agent never calls a message safe.  \n"
-                    f"<sub>Model: {model_name} · press **Clear all** before a new, unrelated check</sub>")
+                    "Check a suspicious SMS, WhatsApp message, email or link for signs of a Malaysian scam.\n\n"
+                    "**How it works:** 1️⃣ Pick an example or paste a message · 2️⃣ Press **Check** · "
+                    "3️⃣ Read the risk level, the advice and each step that the agent took.  \n"
+                    f"<sub>Model: {model_name} · Links are read as text and never opened · "
+                    "Press **Clear all** before a new, unrelated check</sub>")
         session = gr.State(None)
         query = gr.State("")
         with gr.Row(equal_height=False):
             with gr.Column(scale=5):
                 with gr.Group():
                     case = gr.Dropdown(choices=[case[0] for case in TEST_CASES], value=None,
-                                       label="Example messages", interactive=True)
+                                       label="Example messages (optional)", interactive=True)
                     box = gr.Textbox(label="Message to check", lines=4,
                                      placeholder="Pick an example above, or paste a suspicious message here")
                 expected = gr.HTML("")
@@ -323,18 +359,20 @@ def build_ui(llm):
                     with gr.Row():
                         confirm = gr.Button("Confirm report (simulated)", variant="primary")
                         cancel = gr.Button("Cancel")
-                calls_md = gr.Markdown(_NOTHING_YET)
+                steps = gr.HTML(_NOTHING_YET)
                 with gr.Accordion("What this agent can do: 6 tools and 5 safety rules", open=False):
                     toolbox = gr.Markdown(_toolbox_md())
         with gr.Accordion("Full details: raw JSON for this message, and the log of all messages", open=False):
             last = gr.JSON(label="Calls for this message (full JSON)")
             log = gr.Dataframe(headers=LOG_HEADERS, wrap=True, interactive=False, label="All calls in this session")
+        gr.Markdown("<sub>⚠️ ScamGuard MY gives advice only and can be wrong. It never calls a message safe. "
+                    "If you lost money to a scam, call the National Scam Response Centre (NSRC) on **997** at once.</sub>")
 
         # events
         case.change(pick_case, case, [box, expected])
-        outs = [chat, verdict, calls_md, toolbox, report_md, report_box, last, log, session, send]
+        outs = [chat, verdict, steps, toolbox, report_md, report_box, last, log, session, send]
         for trigger in (send.click, box.submit):
-            trigger(show_user, [box, chat], [box, chat, query, verdict, calls_md, send]) \
+            trigger(show_user, [box, chat], [box, chat, query, verdict, steps, send]) \
                 .then(answer, [query, chat, session], outs)
         report_outs = [chat, report_md, report_box, session]
         confirm.click(lambda c, s: on_report(c, s, True), [chat, session], report_outs)

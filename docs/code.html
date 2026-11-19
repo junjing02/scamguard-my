@@ -210,7 +210,7 @@ dl.gloss dt { font-weight: 600; } dl.gloss dd { margin: 0; color: var(--muted); 
 
 <main>
 <header>
-  <div class="eyebrow">scamguard_project · 11 Python files · 1,340 lines</div>
+  <div class="eyebrow">scamguard_project · 11 Python files · 1,378 lines</div>
   <h1>ScamGuard MY Code Tour</h1>
   <p class="lead">This page explains all the code of the agent. First, see which file does what. Then follow one real
   scam message through the code, one step at a time. At the end, each file has its own section with its most important code.</p>
@@ -229,7 +229,7 @@ dl.gloss dt { font-weight: 600; } dl.gloss dd { margin: 0; color: var(--muted); 
     </div>
     <div class="map-arrow">↓</div>
     <div class="map-row">
-      <a class="fcard" href="#f-ui"><span class="path">scamguard/app.py</span><span class="role">The Gradio web page: chat, verdict card, and every function call.</span><span class="meta">343 lines</span></a>
+      <a class="fcard" href="#f-ui"><span class="path">scamguard/app.py</span><span class="role">The Gradio web page: chat, verdict card, and every function call.</span><span class="meta">381 lines</span></a>
     </div>
     <div class="map-arrow">↓ run_turn(session, text)</div>
     <div class="map-row">
@@ -279,18 +279,18 @@ dl.gloss dt { font-weight: 600; } dl.gloss dd { margin: 0; color: var(--muted); 
       <div class="where"><span class="chip">scamguard/app.py · answer()</span></div>
       <p>The button runs two functions. <code>show_user()</code> shows your message at once and locks the button.
       Then <code>answer()</code> gives the text and your <code>Session</code> to the agent. A new browser tab gets a new, empty Session.</p>
-      <figure class="code"><figcaption><b>scamguard/app.py</b><span>lines 270–281</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">270
-271
-272
-273
-274
-275
-276
-277
-278
-279
-280
-281</pre><pre class="src"><code class="language-python">    # step 2: run the agent
+      <figure class="code"><figcaption><b>scamguard/app.py</b><span>lines 304–315</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">304
+305
+306
+307
+308
+309
+310
+311
+312
+313
+314
+315</pre><pre class="src"><code class="language-python">    # step 2: run the agent
     def answer(text, chat, session):
         session = session or Session()
         done = gr.update(interactive=True, value=&quot;Check&quot;)
@@ -300,7 +300,7 @@ dl.gloss dt { font-weight: 600; } dl.gloss dd { margin: 0; color: var(--muted); 
         start = time.time()
         result = agent.run_turn(session, text)
         chat = chat + [{&quot;role&quot;: &quot;assistant&quot;, &quot;content&quot;: result[&quot;reply&quot;]}]
-        return (chat, _verdict(session, result[&quot;calls&quot;]), _calls_md(result[&quot;calls&quot;], time.time() - start),
+        return (chat, _verdict(session, result[&quot;calls&quot;]), _steps_html(result[&quot;calls&quot;], time.time() - start),
                 _toolbox_md(result[&quot;calls&quot;]), *report_view(session), result[&quot;calls&quot;], log_rows(session), session, done)</code></pre></div></figure>
     </article>
 
@@ -693,25 +693,26 @@ final_text = "High risk: phishing. It uses urgency, it names CIMB, and the link 
 
     <article class="step">
       <div class="step-head"><span class="n">STEP 14</span><h3>The interface shows the result</h3><span class="who ui">interface</span></div>
-      <div class="where"><span class="chip">scamguard/app.py · _verdict()</span><span class="chip">_calls_md()</span><span class="chip">_toolbox_md()</span></div>
-      <p>The verdict card is chosen from the call log and <code>session.last_risk</code>. "What the agent did" lists the 3 calls with their
-      arguments and results. The full JSON and the log of all messages are in the "Full details" panel.</p>
-      <figure class="code"><figcaption><b>scamguard/app.py</b><span>lines 143–158</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">143
-144
-145
-146
-147
-148
-149
-150
-151
-152
-153
-154
-155
-156
-157
-158</pre><pre class="src"><code class="language-python">def _verdict(session, calls):
+      <div class="where"><span class="chip">scamguard/app.py · _verdict()</span><span class="chip">_steps_html()</span><span class="chip">_toolbox_md()</span></div>
+      <p>The verdict card is chosen from the call log and <code>session.last_risk</code>, and its meter shows the band of the level. "What the agent did" shows one card for each of the 3 calls, with the
+      arguments and the result. The full JSON and the log of all messages are in the "Full details" panel.</p>
+      <figure class="code"><figcaption><b>scamguard/app.py</b><span>lines 170–186</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">170
+171
+172
+173
+174
+175
+176
+177
+178
+179
+180
+181
+182
+183
+184
+185
+186</pre><pre class="src"><code class="language-python">def _verdict(session, calls):
     &quot;&quot;&quot;Choose the verdict card for this message. The level comes from the tools, never from the LLM text.&quot;&quot;&quot;
     if any(c[&quot;status&quot;] == &quot;blocked&quot; for c in calls):
         return _badge(&quot;REFUSED&quot;, _PURPLE, &quot;A safety rule blocked this request. The model never saw it.&quot;,
@@ -719,8 +720,9 @@ final_text = "High risk: phishing. It uses urgency, it names CIMB, and the link 
     if session.last_risk:
         r = session.last_risk
         label, colour = _BADGE[r[&quot;level&quot;]]
+        meter = _meter(r[&quot;level&quot;]) if r[&quot;level&quot;] in (&quot;High&quot;, &quot;Medium&quot;, &quot;Low&quot;) else &quot;&quot;
         return _badge(label, colour, f&quot;Score {r[&#x27;score&#x27;]} from the tools. A heuristic, never a guarantee.&quot;,
-                      _ADVICE[r[&quot;level&quot;]], r[&quot;reasons&quot;][:4])
+                      _ADVICE[r[&quot;level&quot;]], r[&quot;reasons&quot;][:4], meter)
     if any(c[&quot;function&quot;] in (&quot;match_scam_patterns&quot;, &quot;analyze_url&quot;) for c in calls):
         return _badge(&quot;NO RISK SCORE&quot;, _GREY, &quot;The model checked the message but did not calculate the risk.&quot;,
                       &quot;The check is incomplete. Treat the message with care.&quot;)
@@ -1134,40 +1136,40 @@ def procedure_gap(calls: list) -&gt; str | None:
   </div>
 
   <div class="file" id="f-ui">
-    <div class="file-head"><h3>scamguard/app.py</h3><span class="meta">343 lines · the Gradio interface</span></div>
+    <div class="file-head"><h3>scamguard/app.py</h3><span class="meta">381 lines · the Gradio interface</span></div>
     <p>The web page. The top part of the file is data and small helpers that turn results into readable text. <code>build_ui()</code> makes the page and connects the buttons.</p>
     <div class="tbl"><table>
       <tr><th>Item</th><th>What it does</th></tr>
       <tr><td><code>TEST_CASES</code></td><td>The 13 examples in the dropdown, each with its expected steps and result.</td></tr>
       <tr><td><code>TOOL_INFO</code>, <code>GUARD_INFO</code></td><td>Friendly names for the 6 tools and the 5 safety rules.</td></tr>
-      <tr><td><code>_badge</code>, <code>_verdict</code></td><td>The coloured verdict card. LOW is blue, not green, because nothing is called safe.</td></tr>
-      <tr><td><code>_summary</code>, <code>_calls_md</code></td><td>"What the agent did": one block per step with the name, the arguments and a short result.</td></tr>
+      <tr><td><code>_badge</code>, <code>_meter</code>, <code>_verdict</code></td><td>The coloured verdict card with a Low / Medium / High meter. LOW is blue, not green, because nothing is called safe.</td></tr>
+      <tr><td><code>_summary</code>, <code>_steps_html</code></td><td>"What the agent did": one card per step with the title, the status in plain words, the call and a short result.</td></tr>
       <tr><td><code>_toolbox_md</code></td><td>The table of tools and rules, with what ran for this message.</td></tr>
       <tr><td><code>show_user</code> → <code>answer</code></td><td>Two steps: show the message and lock the button, then run the agent.</td></tr>
       <tr><td><code>on_report</code>, <code>on_clear</code></td><td>The Confirm/Cancel buttons, and Clear all (a new Session).</td></tr>
     </table></div>
-    <figure class="code"><figcaption><b>scamguard/app.py</b><span>lines 333–342</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">333
-334
-335
-336
-337
-338
-339
-340
-341
-342</pre><pre class="src"><code class="language-python">        # events
+    <figure class="code"><figcaption><b>scamguard/app.py</b><span>lines 371–380</span></figcaption><div class="code-body"><pre class="ln" aria-hidden="true">371
+372
+373
+374
+375
+376
+377
+378
+379
+380</pre><pre class="src"><code class="language-python">        # events
         case.change(pick_case, case, [box, expected])
-        outs = [chat, verdict, calls_md, toolbox, report_md, report_box, last, log, session, send]
+        outs = [chat, verdict, steps, toolbox, report_md, report_box, last, log, session, send]
         for trigger in (send.click, box.submit):
-            trigger(show_user, [box, chat], [box, chat, query, verdict, calls_md, send]) \
+            trigger(show_user, [box, chat], [box, chat, query, verdict, steps, send]) \
                 .then(answer, [query, chat, session], outs)
         report_outs = [chat, report_md, report_box, session]
         confirm.click(lambda c, s: on_report(c, s, True), [chat, session], report_outs)
         cancel.click(lambda c, s: on_report(c, s, False), [chat, session], report_outs)
         clear.click(on_clear, None, outs + [case, expected, box])</code></pre></div></figure>
     <ol class="notes">
-      <li><span class="at">L336–338</span><span>The Check button and the Enter key do the same thing. <code>.then()</code> runs <code>answer</code> after <code>show_user</code> has updated the page.</span></li>
-      <li><span class="at">L340–341</span><span>The only code path that confirms or cancels a report.</span></li>
+      <li><span class="at">L374–376</span><span>The Check button and the Enter key do the same thing. <code>.then()</code> runs <code>answer</code> after <code>show_user</code> has updated the page.</span></li>
+      <li><span class="at">L378–379</span><span>The only code path that confirms or cancels a report.</span></li>
     </ol>
   </div>
 
